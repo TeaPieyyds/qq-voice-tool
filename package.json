@@ -1,0 +1,11 @@
+{
+  "name": "qq-voice-tool",
+  "version": "1.0.0",
+  "private": true,
+  "description": "把任意音频转换成手机 QQ 可播放的语音 slk，并一键替换到手机缓存目录",
+  "main": "server.js",
+  "dependencies": {
+    "audio-decode": "^3.12.0",
+    "silk-wasm": "^3.7.1"
+  }
+}

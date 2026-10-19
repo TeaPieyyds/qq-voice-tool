@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QQ 语音发送助手</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --line:#e6e8eb; --text:#1f2328; --muted:#68707a;
+    --brand:#2f6feb; --brand-soft:#eaf1fe; --ok:#1a7f4b; --ok-soft:#e8f6ee;
+    --warn:#9a6700; --warn-soft:#fff8e5; --err:#b42318; --err-soft:#fdeceb; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.6 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:19px;font-weight:600;margin:0}
+  h2{font-size:14px;font-weight:600;margin:0 0 12px}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+  .badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+    font-size:12.5px;border:1px solid var(--line);background:#fff;color:var(--muted)}
+  .dot{width:7px;height:7px;border-radius:50%;background:#c3c8ce}
+  .dot.on{background:var(--ok)} .dot.warn{background:#d68a00} .dot.off{background:#c3c8ce}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px}
+  .step{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .num{width:22px;height:22px;border-radius:50%;background:var(--brand-soft);color:var(--brand);
+    display:grid;place-items:center;font-size:12.5px;font-weight:600;flex:none}
+  .drop{border:1.5px dashed #cfd5dc;border-radius:10px;padding:30px 20px;text-align:center;cursor:pointer;
+    transition:.15s;background:#fbfcfd}
+  .drop:hover,.drop.over{border-color:var(--brand);background:var(--brand-soft)}
+  .drop .big{font-size:14.5px;font-weight:500;margin-bottom:4px}
+  .drop .small{font-size:12.5px;color:var(--muted)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:14px}
+  .kv div{background:#fafbfc;border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+  .kv b{display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-bottom:2px}
+  .kv span{font-size:13.5px;font-variant-numeric:tabular-nums}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{ text-align:left;font-weight:500;color:var(--muted);font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line)}
+  td{padding:8px;border-bottom:1px solid #f0f2f4;font-variant-numeric:tabular-nums}
+  tr.pick{cursor:pointer}
+  tr.pick:hover{background:#fafbfc}
+  tr.sel{background:var(--brand-soft)}
+  tr.short td{color:#a15c00}
+  .tag{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11.5px;border:1px solid transparent}
+  .tag.ok{background:var(--ok-soft);color:var(--ok);border-color:#c9e9d7}
+  .tag.warn{background:var(--warn-soft);color:var(--warn);border-color:#f0dfae}
+  .tag.gray{background:#f1f3f5;color:var(--muted);border-color:var(--line)}
+  button{font:inherit;border-radius:9px;padding:9px 16px;border:1px solid var(--line);background:#fff;
+    color:var(--text);cursor:pointer;transition:.15s}
+  button:hover{background:#f7f8fa}
+  button.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:500}
+  button.primary:hover{filter:brightness(1.06)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.ghost{border-color:transparent;color:var(--muted)}
+  .log{margin-top:14px;font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .log .l{display:flex;gap:8px;align-items:flex-start}
+  .log .l i{font-style:normal;flex:none}
+  .log .ok i{color:var(--ok)} .log .err i{color:var(--err)}
+  .alert{padding:10px 12px;border-radius:9px;font-size:12.5px;margin-top:12px;display:none}
+  .alert.show{display:block}
+  .alert.warn{background:var(--warn-soft);color:#7a5200;border:1px solid #f0dfae}
+  .alert.err{background:var(--err-soft);color:var(--err);border:1px solid #f6cfcb}
+  .alert.ok{background:var(--ok-soft);color:var(--ok);border:1px solid #c9e9d7}
+  details summary{cursor:pointer;font-size:13px;color:var(--muted);outline:none}
+  .setting{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center;margin-top:12px;font-size:13px}
+  input[type=text]{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px;width:100%;background:#fff}
+  .empty{color:var(--muted);font-size:13px;padding:14px 2px}
+  .foot{color:#9aa1a9;font-size:12px;text-align:center;margin-top:22px;line-height:1.9}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>QQ 语音发送助手</h1>
+      <div class="sub">拖一个音频进来，替换手机里已录好的语音，文件名保持不变</div>
+    </div>
+    <div class="badges" id="badges"></div>
+  </header>
+
+  <section class="card" id="setup" style="display:none;border-color:#f0dfae;background:#fffdf6">
+    <div class="step"><span class="num" style="background:#fff3d1;color:#8a6100">!</span><h2 style="margin:0">还差一步：开启手机 USB 调试</h2></div>
+    <div class="sub" style="margin-bottom:10px">
+      MTP（U 盘模式）只能读取，Android 不允许它覆盖已有文件，所以「替换」走 ADB。只需设置一次：
+    </div>
+    <ol class="sub" style="margin:0 0 12px 18px;padding:0;line-height:2">
+      <li>手机：设置 → 关于手机 → 连续点「版本号」7 次 → 输入锁屏密码</li>
+      <li>返回设置 → 系统/更多设置 → <b>开发者选项</b> → 打开 <b>USB 调试</b></li>
+      <li>插上数据线，手机弹窗点「允许」（勾选「一律允许」）</li>
+    </ol>
+    <div class="row">
+      <button class="primary" id="btnInstall">自动安装 ADB 组件</button>
+      <button id="btnRecheck">我已开启，重新检测</button>
+    </div>
+    <div class="alert" id="setupAlert"></div>
+  </section>
+
+  <section class="card">
+    <div class="step"><span class="num">1</span><h2 style="margin:0">要发送的音频</h2></div>
+    <div class="drop" id="drop">
+      <div class="big">拖入音频文件，或点击选择</div>
+      <div class="small">支持 wav / mp3 / flac / ogg / m4a（自动转 24kHz 单声道 SILK）</div>
+    </div>
+    <input type="file" id="file" accept="audio/*,.wav,.mp3,.flac,.ogg,.m4a" hidden>
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="pathInput" placeholder="或直接粘贴文件完整路径，回车转换（例：E:\音频\糖哭.wav）" style="flex:1">
+    </div>
+    <div class="kv" id="kv" style="display:none"></div>
+    <div class="row" style="margin-top:14px" id="audioActions">
+      <audio id="player" controls style="display:none;height:34px;flex:1;min-width:240px"></audio>
+      <button class="ghost" id="btnExport" style="display:none">打开导出目录</button>
+    </div>
+    <div class="alert" id="buildAlert"></div>
+  </section>
+
+  <section class="card">
+    <div class="step"><span class="num">2</span><h2 style="margin:0">选择要替换的语音</h2>
+      <button class="ghost" id="btnScan" style="margin-left:auto">重新扫描</button>
+    </div>
+    <div class="empty" id="scanHint">正在检查手机连接…</div>
+    <div id="listWrap" style="display:none">
+      <table>
+        <thead><tr><th style="width:96px">录制时间</th><th style="width:78px">时长</th><th style="width:82px">大小</th><th>文件名</th><th style="width:86px">状态</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="alert warn" id="durWarn"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="step"><span class="num">3</span><h2 style="margin:0">替换</h2></div>
+    <div class="row">
+      <button class="primary" id="btnApply" disabled>替换并保持文件名</button>
+      <button id="btnManual" disabled>导出 + 手动替换</button>
+      <label class="sub" style="display:flex;gap:6px;align-items:center;margin:0">
+        <input type="checkbox" id="backup" checked> 替换前备份原文件
+      </label>
+    </div>
+    <div class="log" id="log"></div>
+    <div class="alert" id="applyAlert"></div>
+  </section>
+
+  <details class="card" id="settings">
+    <summary>设置</summary>
+    <div class="setting"><label>手机名称</label><input type="text" id="cfgDevice" placeholder="iQOO"></div>
+    <div class="setting"><label>QQ 号（可选）</label><input type="text" id="cfgUin" placeholder="留空自动识别"></div>
+    <div class="setting"><label>adb.exe 路径</label><input type="text" id="cfgAdb" placeholder="留空自动查找"></div>
+    <div class="setting"><label>连接方式</label>
+      <select id="cfgMode" style="font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px">
+        <option value="auto">自动（优先 ADB）</option>
+        <option value="mtp">只用 MTP（U 盘模式）</option>
+      </select>
+    </div>
+    <div class="row" style="margin-top:14px"><button id="btnSave">保存设置</button>
+      <button id="btnWake">启动手机上的 Shizuku</button>
+    </div>
+    <div class="alert" id="wakeAlert"></div>
+    <div class="sub" style="margin-top:8px;font-size:12.5px">手机重启后 Shizuku 会停。插着数据线点这个按钮即可拉起，并已做脱离处理——拔线后照样能用。</div>
+  </details>
+
+  <div class="foot">
+    替换的是 QQ 的本地语音缓存文件，属非官方用法，QQ 更新后路径或格式可能变化。<br>
+    气泡上的秒数只是显示值，音频会完整播放 —— 先录一条再取消，工具默认就选最新的那条。<br>
+    <span id="ver" style="color:#b9bfc6">界面 v1.5 · 自动选中最新录音</span>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let state = { token:null, info:null, files:[], target:null, mode:null, adbReady:false, buildName:'' };
+
+function fmtDur(s){ if(s==null) return '—'; return s>=60? Math.floor(s/60)+':'+String(Math.round(s%60)).padStart(2,'0') : s.toFixed(2)+'s'; }
+function fmtSize(b){ if(b==null) return '—'; return b<1024? b+' B' : (b/1024).toFixed(1)+' KB'; }
+function fmtTime(ms){ if(!ms) return '—'; const d=new Date(ms); const p=n=>String(n).padStart(2,'0');
+  return `${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function logLine(text, kind='ok'){ const el=document.createElement('div'); el.className='l '+kind;
+  el.innerHTML = `<i>${kind==='err'?'✕':'✓'}</i><span></span>`; el.lastChild.textContent=text; $('#log').appendChild(el); }
+function alertBox(el, kind, msg){ el.className='alert show '+kind; el.textContent=msg; }
+function clearAlert(el){ el.className='alert'; el.textContent=''; }
+
+/* ---------- 设备状态 ---------- */
+async function refreshStatus(){
+  const r = await fetch('/api/status').then(r=>r.json()).catch(()=>null);
+  const b = $('#badges'); b.innerHTML='';
+  if(!r){ b.innerHTML='<span class="badge"><span class="dot off"></span>服务未响应</span>'; return; }
+  const adbOk = r.adb.ok, mtpOk = r.mtp.ok;
+  state.adbReady = adbOk;
+  b.insertAdjacentHTML('beforeend',
+    `<span class="badge"><span class="dot ${adbOk?'on':(mtpOk?'warn':'off')}"></span>ADB ${adbOk?'已连接':'未连接'}</span>`);
+  b.insertAdjacentHTML('beforeend',
+    `<span class="badge"><span class="dot ${mtpOk?'on':'off'}"></span>MTP ${mtpOk?'已连接':(r.mtp.error||'未连接')}</span>`);
+  $('#setup').style.display = adbOk ? 'none' : 'block';
+  syncButtons();
+  const cfg = r.config||{};
+  $('#cfgDevice').value = cfg.deviceName||''; $('#cfgUin').value = cfg.qqUin||'';
+  $('#cfgAdb').value = cfg.adbPath||''; $('#cfgMode').value = cfg.preferMode||'auto';
+  $('#backup').checked = cfg.backup !== false;
+  if(!adbOk && !mtpOk){ $('#scanHint').textContent='没有检测到手机。请用数据线连接，手机上选「传输文件」，并解锁屏幕。'; return false; }
+  return true;
+}
+
+/* ---------- 扫描 ---------- */
+async function scan(){
+  $('#scanHint').style.display='block'; $('#scanHint').textContent='正在扫描手机里的语音…';
+  $('#listWrap').style.display='none';
+  const mode = $('#cfgMode').value==='mtp' ? 'mtp' : 'auto';
+  let r;
+  try{
+    r = await fetch('/api/scan?mode='+mode).then(r=>r.json());
+  }catch(e){
+    $('#scanHint').textContent = '扫描请求失败：' + (e.message||'网络异常') + '（服务是否还在运行？）';
+    return;
+  }
+  if(!(r.files||[]).length && r.error){
+    $('#scanHint').textContent = '扫描失败：' + r.error;
+    return;
+  }
+  state.files = r.files||[]; state.mode = r.mode; state._segments = r.segments || null;
+  if(!state.files.length){ $('#scanHint').textContent='这个目录下没有找到语音文件，先在 QQ 里录一条再取消。'; return; }
+  $('#scanHint').style.display='block';
+  $('#scanHint').textContent = `${r.where} · 共 ${state.files.length} 条 · 通过 ${String(r.mode).toUpperCase()} 扫描 · 已自动选中最新一条`;
+  $('#listWrap').style.display='block';
+  renderList();
+  autoPick();
+}
+
+function renderList(){
+  const tb=$('#tbody'); tb.innerHTML='';
+  const newestName = state.files[0] ? state.files[0].name : null;
+  for(const f of state.files){
+    const tr=document.createElement('tr');
+    tr.className='pick';
+    tr.dataset.name=f.name;
+    const tag = f.name===newestName
+      ? '<span class="tag ok">最新</span>'
+      : (f.durationSec==null?'<span class="tag gray">未解析</span>':'<span class="tag gray">可用</span>');
+    tr.innerHTML = `<td>${fmtTime(f.modified)}</td>
+      <td>${fmtDur(f.durationSec)}</td>
+      <td>${fmtSize(f.size)}</td>
+      <td style="font-family:ui-monospace,monospace;font-size:12px">${f.name}</td>
+      <td>${tag}</td>`;
+    tr.onclick = ()=>{ selectTarget(f); };
+    if(state.target && state.target.name===f.name) tr.classList.add('sel');
+    tb.appendChild(tr);
+  }
+  // QQ 单条语音上限 60 秒，超过才会真出问题
+  if(state.info && state.info.durationSec > 59.5){
+    alertBox($('#durWarn'),'warn',
+      `音频有 ${fmtDur(state.info.durationSec)}，超过 QQ 单条语音 60 秒上限，发出去可能被截断。建议先剪到 60 秒以内。`);
+  } else clearAlert($('#durWarn'));
+}
+
+/* 最新录的那条就是唯一能发出去的那条 —— 默认永远选它 */
+function autoPick(){
+  if(!state.files.length) return;
+  selectTarget(state.files[0]);
+}
+
+function syncButtons(){
+  $('#btnApply').disabled = !(state.token && state.target && state.adbReady);
+  $('#btnManual').disabled = !(state.token && state.target);
+}
+
+function selectTarget(f){
+  state.target = f;
+  document.querySelectorAll('#tbody tr').forEach(tr=>tr.classList.toggle('sel', tr.dataset.name===f.name));
+  renderList();
+  syncButtons();
+}
+
+/* ---------- 生成 ---------- */
+function readAsBase64(file){
+  return new Promise((res, rej)=>{
+    const fr = new FileReader();
+    fr.onload = ()=> res(String(fr.result).split(',')[1] || '');
+    fr.onerror = ()=> rej(new Error('读取文件失败'));
+    fr.readAsDataURL(file);
+  });
+}
+
+/* 支持三种入口：File 对象、本地路径字符串 */
+async function build(input){
+  clearAlert($('#buildAlert'));
+  $('#kv').style.display='none';
+  $('#drop').classList.add('over');
+  $('#drop').querySelector('.big').textContent='正在转换…';
+  try{
+    const isPath = typeof input === 'string';
+    const file = isPath ? null : input;
+    let payload;
+
+    if(isPath){
+      const p = input.trim().replace(/^"|"$/g,'');
+      if(!p) throw new Error('路径为空');
+      payload = { path:p };
+    } else if(!file || !file.size){
+      if(file && file.path) payload = { path:file.path, name:file.name };
+      else throw new Error(`拿到的是空文件（${file ? file.name+' · '+file.size+' 字节' : '没有文件对象'}）。请改用下面的「粘贴文件路径」。`);
+    } else {
+      const b64 = await readAsBase64(file);
+      if(!b64) throw new Error(`读取到 0 字节（${file.name} · ${file.size} 字节）`);
+      payload = { name:file.name, data:b64 };
+    }
+
+    const t0=Date.now();
+    const r = await fetch('/api/build', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    }).then(r=>r.json());
+    if(!r.ok) throw new Error(r.error);
+    state.token=r.token; state.info=r.info; state.buildName=file.name;
+    const i=r.info;
+    $('#kv').style.display='grid';
+    $('#kv').innerHTML = `
+      <div><b>成品时长</b><span>${fmtDur(i.durationSec)}</span></div>
+      <div><b>源音频</b><span>${i.sourceSampleRate/1000}k · ${i.sourceChannels===2?'立体声':'单声道'} · ${fmtDur(i.sourceDuration)}</span></div>
+      <div><b>文件大小</b><span>${fmtSize(i.size)}</span></div>
+      <div><b>帧数 / 码率</b><span>${i.frames} · ${i.bitrate.toFixed(1)}k</span></div>
+      <div><b>0x02 前缀</b><span>${i.hasTag?'已带上 ✓':'缺失 ✗'}</span></div>
+      <div><b>结尾</b><span>无 FF FF ✓</span></div>`;
+    const pl=$('#player'); pl.src='/api/preview/'+r.token; pl.style.display='block';
+    $('#btnExport').style.display='inline-block';
+    alertBox($('#buildAlert'),'ok',`转换完成，耗时 ${Date.now()-t0} ms · 结构校验通过`);
+    if(state.target) renderList();
+    autoPick();
+    syncButtons();
+  }catch(e){
+    alertBox($('#buildAlert'),'err','转换失败：'+e.message);
+  }finally{
+    $('#drop').classList.remove('over');
+    $('#drop').querySelector('.big').textContent='拖入音频文件，或点击选择';
+  }
+}
+
+/* ---------- 替换 ---------- */
+async function apply(){
+  if(!state.token || !state.target) return;
+  $('#btnApply').disabled=true; $('#log').innerHTML=''; clearAlert($('#applyAlert'));
+  const t = state.target;
+  const payload = { token:state.token, mode: state.mode, backup:$('#backup').checked,
+    target:{ name:t.name, dir:t.dir, path:t.path, segments:t.segments || (state._segments||null) } };
+  try{
+    const r = await fetch('/api/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json());
+    if(!r.ok){
+      if(r.needAdb){
+        $('#setup').style.display='block';
+        alertBox($('#applyAlert'),'warn', r.error + ' ' + (r.hint||''));
+        return;
+      }
+      throw new Error(r.error);
+    }
+    (r.steps||[]).forEach(s=>logLine(s.text, s.ok?'ok':'err'));
+    alertBox($('#applyAlert'),'ok', r.tip || '替换完成');
+  }catch(e){
+    alertBox($('#applyAlert'),'err','替换失败：'+e.message);
+  }finally{ syncButtons(); }
+}
+
+async function manualExport(){
+  if(!state.token || !state.target) return;
+  try{
+    const r = await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({token:state.token, name:state.target.name})}).then(r=>r.json());
+    if(!r.ok) throw new Error(r.error);
+    logLine(`已导出 ${r.name} 到「导出」目录`, 'ok');
+    alertBox($('#applyAlert'),'warn','文件名已复制到剪贴板。在弹出的资源管理器里，把文件拖到手机的 ptt 目录并覆盖；同名文件需先删掉再粘贴。');
+  }catch(e){ alertBox($('#applyAlert'),'err','导出失败：'+e.message); }
+}
+
+/* ---------- 事件 ---------- */
+$('#drop').onclick = ()=> $('#file').click();
+$('#file').onchange = e => { if(e.target.files[0]) build(e.target.files[0]); };
+['dragenter','dragover'].forEach(ev=>$('#drop').addEventListener(ev,e=>{e.preventDefault();$('#drop').classList.add('over');}));
+['dragleave','drop'].forEach(ev=>$('#drop').addEventListener(ev,e=>{e.preventDefault();$('#drop').classList.remove('over');}));
+$('#drop').addEventListener('drop', e=>{
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f){ build(f); return; }
+  const txt = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || '').trim();
+  const p = txt.replace(/^file:\/\/\//, '').replace(/\//g, '\\');
+  if(p) build(p);
+});
+$('#pathInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ const v=e.target.value.trim(); if(v) build(v); }
+});
+$('#btnScan').onclick = scan;
+$('#btnApply').onclick = apply;
+$('#btnManual').onclick = manualExport;
+$('#btnRecheck').onclick = async ()=>{ clearAlert($('#setupAlert')); await refreshStatus(); scan(); };
+$('#btnInstall').onclick = async ()=>{
+  const btn=$('#btnInstall'); btn.disabled=true; btn.textContent='正在下载安装…';
+  clearAlert($('#setupAlert'));
+  try{
+    const r = await fetch('/api/install-adb',{method:'POST'}).then(r=>r.json());
+    if(!r.ok) throw new Error(r.error);
+    alertBox($('#setupAlert'),'ok',`ADB 组件已装好（${r.sizeMB} MB）。接下来按上面第 2、3 步开启 USB 调试，再点「重新检测」。`);
+  }catch(e){ alertBox($('#setupAlert'),'err','安装失败：'+e.message); }
+  finally{ btn.disabled=false; btn.textContent='自动安装 ADB 组件'; await refreshStatus(); }
+};
+$('#btnExport').onclick = ()=>fetch('/api/open-export',{method:'POST'});
+$('#btnWake').onclick = async ()=>{
+  const A=$('#wakeAlert'); A.className='alert show ok'; A.textContent='正在启动…';
+  try{
+    const r = await fetch('/api/wake-shizuku',{method:'POST'}).then(r=>r.json());
+    if(!r.ok) throw new Error(r.error||'启动失败');
+    alertBox(A, 'ok', r.text);
+  }catch(e){ alertBox(A,'err','启动失败：'+e.message); }
+};
+$('#btnSave').onclick = async ()=>{
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ deviceName:$('#cfgDevice').value.trim(), qqUin:$('#cfgUin').value.trim(),
+      adbPath:$('#cfgAdb').value.trim(), preferMode:$('#cfgMode').value, backup:$('#backup').checked })});
+  await refreshStatus(); scan();
+};
+
+(async ()=>{
+  const ok = await refreshStatus();
+  if(ok) scan(); else $('#scanHint').textContent='没有检测到手机。请用数据线连接，手机上选「传输文件」，并解锁屏幕。';
+  // 等待用户开启 USB 调试时自动重试（只轻量探 ADB，不碰 MTP）
+  setInterval(async ()=>{
+    if(state.adbReady) return;
+    try{
+      const r = await fetch('/api/adb-ping').then(r=>r.json());
+      if(r.ok){ state.adbReady = true; $('#setup').style.display='none'; logLine('ADB 已连接，可以替换了','ok'); await refreshStatus(); scan(); }
+    }catch{}
+  }, 5000);
+})();
+</script>
+</body>
+</html>
