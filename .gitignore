@@ -31,3 +31,6 @@ android/ui.xml
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 上传临时目录
+.tmp/

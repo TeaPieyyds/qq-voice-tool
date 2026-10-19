@@ -5,6 +5,9 @@
 
 ---
 
+> **语音素材**：另附一份[语音素材包](https://github.com/TheColt66/qq-voice-tool/releases/tag/assets-v1)（2502 个音频片段，约 299 MB）。
+> 不想自己找音频的话，解压后随便挑一个，在工具里选中替换即可。
+
 ## 一句话流程
 
 ```
