@@ -53,7 +53,7 @@
 | 依赖 | USB 数据线 + ADB | Shizuku（免 root） |
 | 适合 | 坐在电脑前、批量折腾 | 随时随地、不想开电脑 |
 | 使用门槛 | 低（插线即用） | 中（需装 Shizuku 并每次重启后激活一次） |
-| 位置 | 本仓库根目录 | [`android/`](android/) |
+| 位置 | 本仓库根目录 | [`android/`](android/)（APK 见 [Releases](https://github.com/Thecolt66/qq-voice-tool/releases/latest)） |
 
 两个版本读的是**同一个文件**，改完结果完全等价，可以混用。
 
@@ -78,7 +78,7 @@
 
 ## 快速开始 · 手机版
 
-1. 安装 [`android/out/app-signed.apk`](android/out)（允许"安装未知来源应用"）
+1. 下载并安装 **[Releases](https://github.com/Thecolt66/qq-voice-tool/releases/latest) 里的 `app-signed.apk`**（允许"安装未知来源应用"）
 2. 安装 [Shizuku](https://github.com/RikkaApps/Shizuku/releases) 并启动它的服务：
    - **无线调试**（推荐）：连 Wi-Fi → 开发者选项 → 无线调试 → Shizuku 里「配对」输 6 位码 → 「启动」
    - **USB**：插线用电脑跑 `adb shell <shizuku lib 路径>`（Shizuku 界面里有现成命令）
