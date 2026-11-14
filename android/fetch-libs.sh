@@ -4,7 +4,7 @@
 set -e
 
 VER="${SHIZUKU_VER:-13.1.5}"
-BASE="https://repo1.maven.org/maven2/dev/rikka/shizuku"
+BASE="https://maven.aliyun.com/repository/public/dev/rikka/shizuku"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 mkdir -p libs
