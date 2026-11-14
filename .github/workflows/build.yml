@@ -1,0 +1,75 @@
+name: build
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'android/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Fetch Shizuku libs
+        run: |
+          cd android
+          bash fetch-libs.sh
+
+      - name: Build APK
+        run: |
+          cd android
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          bash build.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-ball-apk
+          path: android/out/app-signed.apk
+
+      - name: Read version
+        id: ver
+        run: |
+          V=$(grep -oP 'android:versionName="\K[^"]+' android/AndroidManifest.xml | head -1)
+          echo "v=$V" >> $GITHUB_OUTPUT
+          echo "tag=v$V-build${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: Publish release
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: 语音球 ${{ steps.ver.outputs.v }} (build ${{ github.run_number }})
+          body: |
+            悬浮球版 QQ 语音替换工具。
+
+            **用法**
+            1. 安装后打开「语音球」，授予「显示在其他应用上层」
+            2. 屏幕上出现一颗球，拖动可移动，轻点打开面板
+            3. QQ 里按住说话 -> 滑到「转文字」松手（先别发送）
+            4. 轻点球 -> 选音频 -> 选中最新那条 -> 替换并发送
+            5. 回 QQ 点那条语音试听，满意再发
+
+            **需要 Shizuku**（免 root），且已启动服务。
+
+            **限制**：单条最长 60 秒；气泡秒数只是显示值，音频完整播放。
+          files: android/out/app-signed.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
