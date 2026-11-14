@@ -1,36 +1,5 @@
-# 依赖与运行时产物
 node_modules/
-platform-tools/
-android/libs/
-android/assets/www/lib/
 android/out/
-
-# 本机数据
-config.json
-server.log
-*.log
-备份/
-导出/
-.cache/
-
-# 签名与第三方二进制（首次构建自动生成/自动下载）
+android/libs/*.aar
 android/debug.keystore
-android/keystore.properties
-android/*.apk
-
-# 个人素材与调试残留
-素材/
-android/*.bin
-android/ui.xml
-
-# 调试截图
-*.png
-!docs/**/*.png
-
-# 系统
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# 上传临时目录
-.tmp/
+*.log
