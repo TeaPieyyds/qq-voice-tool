@@ -96,6 +96,30 @@ public class PanelActivity extends Activity {
 
         web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new WebChromeClient() {
+            /** WebView 默认不显示 alert/confirm，必须自己接 */
+            @Override
+            public boolean onJsAlert(WebView v, String url, String msg,
+                                     android.webkit.JsResult r) {
+                new android.app.AlertDialog.Builder(PanelActivity.this)
+                        .setMessage(msg)
+                        .setPositiveButton("好", (d, w) -> r.confirm())
+                        .setOnCancelListener(d -> r.cancel())
+                        .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView v, String url, String msg,
+                                       android.webkit.JsResult r) {
+                new android.app.AlertDialog.Builder(PanelActivity.this)
+                        .setMessage(msg)
+                        .setPositiveButton("确定", (d, w) -> r.confirm())
+                        .setNegativeButton("取消", (d, w) -> r.cancel())
+                        .setOnCancelListener(d -> r.cancel())
+                        .show();
+                return true;
+            }
+
             @Override
             public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 fileCallback = cb;
@@ -118,12 +142,11 @@ public class PanelActivity extends Activity {
             runOnUiThread(() -> Toast.makeText(this, ok ? "Shizuku 已授权" : "Shizuku 授权被拒绝", Toast.LENGTH_SHORT).show());
         });
 
-        // 卡片：宽 92%，高度自适应，垂直居中偏上
+        // 卡片：WebView 铺满整个 Activity，具体布局交给 HTML 控制
+        // （WRAP_CONTENT 的 WebView 高度会塌成 0，这是之前面板空白的原因）
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         lp.gravity = Gravity.CENTER;
-        lp.leftMargin = dp(14);
-        lp.rightMargin = dp(14);
         root.addView(web, lp);
         setContentView(root);
 
