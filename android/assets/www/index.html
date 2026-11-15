@@ -416,10 +416,16 @@ function renderAudioHist(){
 
 /* 点历史 → 直接重读那个 URI 再编码 */
 async function useAudioItem(it){
+  // 已经就是当前选中的那条：字节在内存里，不用重编一遍
+  if(S.token && S.audioPick && S.audioPick.name === it.name){
+    S.audioPick = Object.assign({}, it);
+    renderAudio();
+    return;
+  }
   $('#pickName').textContent = it.name;
   $('#pickMeta').textContent = '读取中…';
   try{
-    const f = await fetchPicked(it.name);
+    const f = await fetchAudioByName(it.name);
     const { pv } = await build(f);
     S.audioPick = Object.assign({}, it, {
       dur: S.info.dur, durStr: fmtDur(S.info.dur),
@@ -432,7 +438,7 @@ async function useAudioItem(it){
     $('#preview').style.display = 'block';
     renderAudio();
   }catch(err){
-    Native.toast('这条读不到了，请重选');
+    Native.toast('这条已清理，请重选');
     $('#pickMeta').textContent = '读不到，请重选';
     reportHeight();
   }
@@ -442,6 +448,15 @@ async function useAudioItem(it){
 async function fetchPicked(name){
   const r = await fetch('/picked', {cache:'no-store'});
   if(!r.ok) throw new Error('取不到音频 HTTP ' + r.status);
+  const blob = await r.blob();
+  if(!blob.size) throw new Error('音频为空');
+  return new File([blob], name || 'audio', {type: blob.type || 'audio/mpeg'});
+}
+
+/* 历史条目：字节已落盘，按文件名回读（重启后也在） */
+async function fetchAudioByName(name){
+  const r = await fetch('/audio?n=' + encodeURIComponent(name || ''), {cache:'no-store'});
+  if(!r.ok) throw new Error('历史音频已清理 HTTP ' + r.status);
   const blob = await r.blob();
   if(!blob.size) throw new Error('音频为空');
   return new File([blob], name || 'audio', {type: blob.type || 'audio/mpeg'});
@@ -520,6 +535,7 @@ function syncBtn(){
   const ok = S.perm && S.token && S.latest && !S.busy;
   b.disabled = !ok;
   if(!S.latest) $('#tip').textContent = '先在 QQ 里录一条';
+  else if(!S.token && S.audioPick) $('#tip').textContent = '点一下那条音频载入';
   else if(!S.audioPick || !S.token) $('#tip').textContent = '先选个音频';
   else $('#tip').textContent = '将替换最新那条语音';
   reportHeight();
@@ -819,6 +835,17 @@ $('#uinInput').addEventListener('keydown', e=>{
 loadAudioState();
 
 try{ Native.setUin(S.uin || '3911006002'); }catch(e){}
+
+/* 上次选过的音频：字节已落盘，开机静默预读回 token，省得每次重启都要重选 */
+(async function warmUp(){
+  const it = S.audioPick;
+  if(!it || !it.name) return;
+  try{
+    const f = await fetchAudioByName(it.name);
+    await build(f);
+    syncBtn();
+  }catch(e){}
+})();
 
 try{
   const st = refresh();
