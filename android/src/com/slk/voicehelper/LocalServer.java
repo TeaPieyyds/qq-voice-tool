@@ -23,6 +23,25 @@ final class LocalServer extends Thread {
     private volatile boolean running = true;
     private final Log logger;
 
+    /** 选中的音频字节，供 /picked 路由回给 WebView（避开 content:// 跨域） */
+    private volatile byte[] picked;
+    private volatile String pickedName = "";
+
+    void setPicked(byte[] data, String name) {
+        this.picked = data;
+        this.pickedName = name == null ? "" : name;
+    }
+
+    boolean hasPicked() { return picked != null && picked.length > 0; }
+
+    private static final String Q = String.valueOf((char) 34);
+
+    private static String esc(String v) {
+        if (v == null) return "";
+        return v.replace(String.valueOf((char) 92), String.valueOf((char) 92) + String.valueOf((char) 92))
+                .replace(Q, String.valueOf((char) 92) + Q);
+    }
+
     LocalServer(AssetManager am, Log log) {
         this.am = am;
         this.logger = log;
@@ -73,6 +92,29 @@ final class LocalServer extends Thread {
             if (q >= 0) path = path.substring(0, q);
             if (path.equals("/") || path.isEmpty()) path = "/index.html";
 
+            // 选中的音频：从本地缓存吐出，和页面同源，不会跨域
+            if (path.equals("/picked")) {
+                byte[] p = picked;
+                if (p == null || p.length == 0) {
+                    writeResponse(s.getOutputStream(), 404, "text/plain",
+                            "no picked".getBytes(StandardCharsets.UTF_8));
+                    return;
+                }
+                writeResponse(s.getOutputStream(), 200, audioMime(pickedName), p);
+                return;
+            }
+
+            // 只告诉前端：现在有没有音频、叫什么名
+            if (path.equals("/pickedinfo")) {
+                String j = "{" + Q + "has" + Q + ":" + hasPicked()
+                        + "," + Q + "name" + Q + ":" + Q + esc(pickedName) + Q
+                        + "," + Q + "size" + Q + ":" + (picked == null ? 0 : picked.length)
+                        + "}";
+                writeResponse(s.getOutputStream(), 200, "application/json; charset=utf-8",
+                        j.getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+
             String asset = "www" + path;
             byte[] body;
             try {
@@ -119,6 +161,19 @@ final class LocalServer extends Thread {
         MIME.put("json", "application/json; charset=utf-8");
         MIME.put("png", "image/png");
         MIME.put("svg", "image/svg+xml");
+    }
+
+    private static String audioMime(String name) {
+        if (name != null) {
+            String n = name.toLowerCase();
+            if (n.endsWith(".mp3")) return "audio/mpeg";
+            if (n.endsWith(".m4a")) return "audio/mp4";
+            if (n.endsWith(".flac")) return "audio/flac";
+            if (n.endsWith(".ogg")) return "audio/ogg";
+            if (n.endsWith(".wav")) return "audio/wav";
+            if (n.endsWith(".aac")) return "audio/aac";
+        }
+        return "application/octet-stream";
     }
 
     private static String mime(String path) {
