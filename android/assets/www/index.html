@@ -216,7 +216,8 @@ const S = {
   latest:null,
   audioPick:null,
   audioHist:[],
-  perm:false, busy:false, loading:false, pickedUri:''
+  perm:false, busy:false, loading:false, pickedUri:'',
+  uin: '3911006002'
 };
 let silk = null;
 const TARGET_RATE = 24000;
@@ -237,31 +238,38 @@ function nameTime(n){
 /* 窗口高度由原生窗口决定，不需要上报 */
 function reportHeight(){}
 
-/* ---------- 本地存储 ---------- */
+/* ---------- 本地存储：走原生 SharedPreferences ----------
+   localStorage 按 origin 存，本地服务端口每次重启都变，一改 origin 就全丢。 */
+
 function loadAudioState(){
   try{
-    const p = JSON.parse(localStorage.getItem(LS_PICK) || 'null');
-    if (p && p.name && p.uri) S.audioPick = p;
-  }catch(e){}
+    const raw = JSON.parse(Native.loadState());
+    const pick = raw.pick ? JSON.parse(raw.pick) : null;
+    if (pick && pick.name) S.audioPick = pick;
+    const hist = raw.hist ? JSON.parse(raw.hist) : [];
+    S.audioHist = Array.isArray(hist) ? hist : [];
+    if (raw.uin) S.uin = raw.uin;
+  }catch(e){
+    S.audioPick = null;
+    S.audioHist = [];
+  }
+}
+
+function persistState(){
   try{
-    const h = JSON.parse(localStorage.getItem(LS_HIST) || '[]');
-    S.audioHist = Array.isArray(h) ? h.filter(x=>x && x.uri) : [];
-  }catch(e){ S.audioHist = []; }
-}
-function saveAudioPick(){
-  try{
-    if (S.audioPick) localStorage.setItem(LS_PICK, JSON.stringify(S.audioPick));
-    else localStorage.removeItem(LS_PICK);
+    Native.saveState(
+      S.audioPick ? JSON.stringify(S.audioPick) : '',
+      JSON.stringify(S.audioHist.slice(0, 10)),
+      S.uin || '3911006002'
+    );
   }catch(e){}
 }
-function saveAudioHist(){
-  try{ localStorage.setItem(LS_HIST, JSON.stringify(S.audioHist.slice(0,10))); }catch(e){}
-}
+
 function pushAudioHist(item){
-  S.audioHist = S.audioHist.filter(x => x.uri !== item.uri);
+  S.audioHist = S.audioHist.filter(x => x && x.name !== item.name);
   S.audioHist.unshift(item);
-  S.audioHist = S.audioHist.slice(0,10);
-  saveAudioHist();
+  S.audioHist = S.audioHist.slice(0, 10);
+  persistState();
 }
 
 /* ---------- 状态 ---------- */
@@ -282,7 +290,7 @@ function refresh(){
     showNudge('Shizuku 在运行，点下面授权。');
   }else{
     pip.className = 'pip live';
-    who.textContent = st.uin ? ('QQ ' + st.uin) : '已就绪';
+    who.textContent = 'QQ ' + (S.uin || '3911006002');
     $('#nudge').style.display = 'none';
     $('#audioWrap').style.display = 'block';
     $('#qqWrap').style.display = 'block';
@@ -350,8 +358,8 @@ function renderAudioHist(){
       const i = S.audioHist.indexOf(it);
       if(i < 0) return;
       S.audioHist.splice(i, 1);
-      saveAudioHist();
-      if(isSel(it)){ S.audioPick = null; S.token = null; saveAudioPick(); }
+      persistState();
+      if(isSel(it)){ S.audioPick = null; S.token = null; persistState(); }
       renderAudio();
       Native.toast('已移除');
     };
@@ -379,7 +387,7 @@ async function useAudioItem(it){
       dur: S.info.dur, durStr: fmtDur(S.info.dur),
       size: S.info.size, srcRate: S.info.srcRate, ch: S.info.ch
     });
-    saveAudioPick();
+    persistState();
     pushAudioHist(S.audioPick);
 
     $('#player').src = URL.createObjectURL(new Blob([pv], {type:'audio/wav'}));
@@ -417,7 +425,7 @@ window.onAudioPicked = async (name, size)=>{
       size: S.info.size, srcRate: S.info.srcRate, ch: S.info.ch
     };
     S.audioPick = item;
-    saveAudioPick();
+    persistState();
     pushAudioHist(item);
 
     $('#pickName').textContent = item.name;
@@ -583,7 +591,7 @@ $('#btnPick').onclick = ()=> Native.pickAudio();
 $('#btnClearAudio').onclick = ()=>{
   if(!S.audioHist.length) return;
   S.audioHist = [];
-  saveAudioHist();
+  persistState();
   renderAudio();
   Native.toast('音频记录已清空');
 };
@@ -733,19 +741,18 @@ function loadList(force){
 })();
 
 /* ---------- QQ 号自定义 ---------- */
-const LS_UIN = 'qq_uin_v1';
-function currentUin(){
-  try{ return localStorage.getItem(LS_UIN) || '3911006002'; }catch(e){ return '3911006002'; }
-}
-
 $('#who').addEventListener('click', ()=>{
-  const old = currentUin();
-  const v = prompt('填 QQ 号（当前 ' + old + '，留空恢复默认）', old);
+  const cur = S.uin || '3911006002';
+  const v = prompt('填 QQ 号（当前 ' + cur + '，留空恢复默认 3911006002）', cur);
   if(v === null) return;
   const nv = String(v).trim();
-  const save = /^\d{4,12}$/.test(nv) ? nv : (nv === '' ? '3911006002' : null);
-  if(save === null){ Native.toast('QQ 号要 4-12 位数字'); return; }
-  try{ localStorage.setItem(LS_UIN, save); }catch(e){}
+  let save;
+  if(nv === '') save = '3911006002';
+  else if(/^\d{4,12}$/.test(nv)) save = nv;
+  else { Native.toast('QQ 号要 4-12 位数字'); return; }
+
+  S.uin = save;
+  persistState();
   try{ Native.setUin(save); }catch(e){}
   $('#who').textContent = 'QQ ' + save;
   loadList(true);
@@ -754,7 +761,7 @@ $('#who').addEventListener('click', ()=>{
 /* ---------- 启动 ---------- */
 loadAudioState();
 
-try{ Native.setUin(currentUin()); }catch(e){}
+try{ Native.setUin(S.uin || '3911006002'); }catch(e){}
 
 try{
   const st = refresh();
