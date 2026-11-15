@@ -284,6 +284,12 @@ public class FloatService extends Service {
     }
 
     private void openPanel() {
+        // 面板已经开着就关掉（球 = 开关）
+        if (PanelActivity.live != null) {
+            Log.i(TAG, "面板已开着 -> 关掉");
+            try { PanelActivity.live.finish(); } catch (Exception ignored) { }
+            return;
+        }
         Intent i = new Intent(this, PanelActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
         startActivity(i);
