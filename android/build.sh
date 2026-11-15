@@ -50,14 +50,22 @@ echo "[3/7] d8"
   "$HERE/libs/shizuku-provider.jar" \
   "$HERE/libs/shizuku-aidl.jar"
 
-echo "[4/7] aapt2 link"
+echo "[4/7] aapt2 compile + link"
+RES_FLAT="$OUT/res-flat"
+rm -rf "$RES_FLAT" && mkdir -p "$RES_FLAT"
+if [ -d "$HERE/res" ]; then
+  find "$HERE/res" -type f -print0 | xargs -0 -I{} "$BT/aapt2" compile -o "$RES_FLAT" {}
+  echo "  资源 $(ls -1 "$RES_FLAT" | wc -l) 个"
+fi
+
 "$BT/aapt2" link \
   -o "$OUT/base.apk" \
   -I "$PLAT" \
   --manifest "$HERE/AndroidManifest.xml" \
   --min-sdk-version $MIN_SDK \
   --target-sdk-version $TARGET_SDK \
-  --version-code 2 --version-name "2.0"
+  --version-code 3 --version-name "2.1" \
+  $(ls -1 "$RES_FLAT"/*.flat 2>/dev/null | tr '\n' ' ')
 
 echo "[5/7] 打包 dex + assets"
 python3 - "$OUT/base.apk" "$OUT/dex/classes.dex" "$HERE/assets" <<'PY'
