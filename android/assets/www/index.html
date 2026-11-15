@@ -10,14 +10,14 @@
     --live:#12a150; --dead:#d0d4da; --danger:#b42318;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;background:transparent;overflow:hidden;
+  html,body{margin:0;background:transparent;
     font:15px/1.55 -apple-system,system-ui,"PingFang SC","Noto Sans CJK SC",sans-serif;
     color:var(--ink);-webkit-font-smoothing:antialiased}
 
   .card{
     background:#fff;border-radius:20px;overflow:hidden;
     box-shadow:0 10px 34px rgba(15,20,28,.20),0 1px 0 rgba(255,255,255,.7) inset;
-    display:flex;flex-direction:column;height:100vh;
+    display:flex;flex-direction:column;width:100%;
   }
 
   .bar{display:flex;align-items:center;gap:8px;padding:13px 15px 10px;flex:none}
@@ -34,7 +34,7 @@
     background:#b6bcc4;border-radius:2px}
   .x::before{transform:rotate(45deg)} .x::after{transform:rotate(-45deg)}
 
-  .body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 15px;flex:1;min-height:0}
+  .body{padding:0 15px;flex:1}
   .body::-webkit-scrollbar{width:0}
 
   .nudge{padding:4px 0 14px}
@@ -202,12 +202,24 @@ function nameTime(n){
 }
 
 let lastH = 0;
+let maxH = 0;
+try{ maxH = Native.screenHeightDp() * 0.86; }catch(e){ maxH = 600; }
+
 function reportHeight(){
   requestAnimationFrame(()=>{
-    const h = document.getElementById('card').getBoundingClientRect().height;
+    const card = document.getElementById('card');
+    const h = card.scrollHeight;
+    if (h < 1) return;
     if (Math.abs(h - lastH) < 1) return;
     lastH = h;
-    try{ Native.reportHeight(h); }catch(e){}
+    // 超过屏幕 86% 就锁住，让 body 自己滚
+    if (h > maxH) {
+      document.getElementById('bodyEl').style.overflowY = 'auto';
+      try{ Native.reportHeight(maxH); }catch(e){}
+    } else {
+      document.getElementById('bodyEl').style.overflowY = 'visible';
+      try{ Native.reportHeight(h); }catch(e){}
+    }
   });
 }
 
