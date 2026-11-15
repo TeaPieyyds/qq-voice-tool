@@ -221,6 +221,8 @@ final class Panel {
         try {
             if (server == null) {
                 server = new LocalServer(ctx.getAssets(), m -> Log.w(TAG, m));
+                // 音频落盘到私有目录：历史条目重启后还能读回来
+                server.setAudioDir(new java.io.File(ctx.getFilesDir(), "audio"));
                 int port = server.startServer();
                 web.loadUrl("http://127.0.0.1:" + port + "/index.html");
                 Log.i(TAG, "本地服务 127.0.0.1:" + port);
