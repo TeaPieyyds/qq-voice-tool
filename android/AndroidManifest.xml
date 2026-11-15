@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.slk.voicehelper"
-    android:versionCode="7"
-    android:versionName="2.5">
+    android:versionCode="8"
+    android:versionName="2.6">
 
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -29,15 +29,16 @@
             </intent-filter>
         </activity>
 
-        <!-- 面板：透明宿主，承载 WebView -->
+        <!-- 面板已经是 overlay 窗口了，不再需要 PanelActivity -->
+
+        <!-- 选文件中转：透明无布局，只负责起系统选择器并回传字节 -->
         <activity
-            android:name=".PanelActivity"
+            android:name=".PickActivity"
             android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:configChanges="orientation|screenSize|keyboardHidden"
             android:excludeFromRecents="true"
-            android:launchMode="singleTop"
-            android:windowSoftInputMode="adjustResize" />
+            android:launchMode="singleTask"
+            android:noHistory="true" />
 
         <!-- 悬浮球常驻服务 -->
         <service
