@@ -661,7 +661,8 @@ $('#btnApply').onclick = ()=>{
     const r = JSON.parse(Native.save(S.latest.name, S.latest.dir, b64(S.token), true));
     if(r.ok){
       Native.toast('已替换 · 回 QQ 点那条语音试听');
-      $('#foot').style.display = 'none';
+      // 不能藏底栏：面板关窗只 removeView，WebView 复用、页面不重载，
+      // display:none 会一直残留到下次打开（按钮消失的原因）
       setTimeout(()=> Native.closePanel(), 420);
     }else{
       Native.toast('失败：'+(r.error||'未知'));
@@ -833,6 +834,15 @@ try{
 window.onPanelState = (w, h)=>{
   document.documentElement.style.setProperty('--win-w', w + 'px');
   document.documentElement.style.setProperty('--win-h', h + 'px');
+  // 面板重开：WebView 复用、页面不重载，清掉上次残留的隐藏状态
+  try{
+    $('#btnApply').textContent = '替换并发送';
+    S.busy = false;
+    if(S.perm){
+      $('#foot').style.display = 'block';
+      loadList(true);          // QQ 里已是新语音，重新取一次最新
+    }
+  }catch(e){}
 };
 
 window.onShizukuChanged = ()=>{
