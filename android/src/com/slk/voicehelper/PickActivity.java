@@ -22,6 +22,10 @@ public class PickActivity extends Activity {
     static final String TAG = "QQVoicePick";
     static final int REQ = 2001;
 
+    /** 选完的字节先存这里，Panel 下次拿（防 Activity 与 Service 时序错开） */
+    static volatile byte[] pendingBytes;
+    static volatile String pendingName;
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -32,6 +36,7 @@ public class PickActivity extends Activity {
         i.setType("audio/*");
         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        Log.i(TAG, "打开选择器");
         try {
             startActivityForResult(i, REQ);
         } catch (Exception e) {
@@ -66,12 +71,17 @@ public class PickActivity extends Activity {
                 finish();
                 return;
             }
+            pendingBytes = bytes;
+            pendingName = name;
+            Log.i(TAG, "读到 " + name + " " + bytes.length + " 字节");
+
             FloatService svc = FloatService.live;
-            if (svc != null && svc.panelRef() != null) {
-                svc.panelRef().setPicked(bytes, name);
-                Log.i(TAG, "已交给面板：" + name + " " + bytes.length + " 字节");
+            Panel p = (svc == null) ? null : svc.panelRef();
+            if (p != null) {
+                p.setPicked(bytes, name);
+                Log.i(TAG, "已交给面板");
             } else {
-                Log.w(TAG, "服务不在，字节丢弃");
+                Log.w(TAG, "面板不在，暂存待取");
             }
         } catch (Exception e) {
             Log.e(TAG, "read", e);
