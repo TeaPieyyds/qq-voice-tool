@@ -18,7 +18,8 @@
     position:relative;
     background:#fff;border-radius:20px;overflow:hidden;
     box-shadow:0 10px 34px rgba(15,20,28,.20),0 1px 0 rgba(255,255,255,.7) inset;
-    display:flex;flex-direction:column;width:100%;
+    display:flex;flex-direction:column;
+    width:100%;height:100vh;
   }
 
   .bar{display:flex;align-items:center;gap:8px;padding:13px 15px 10px;flex:none}
@@ -35,7 +36,8 @@
     background:#b6bcc4;border-radius:2px}
   .x::before{transform:rotate(45deg)} .x::after{transform:rotate(-45deg)}
 
-  .body{padding:0 15px;flex:1}
+  .body{padding:0 15px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
+  .body::-webkit-scrollbar{width:0}
   .body::-webkit-scrollbar{width:0}
 
   .nudge{padding:4px 0 14px}
@@ -107,9 +109,17 @@
   @keyframes turn{to{transform:rotate(360deg)}}
   .act.spinning svg{animation:turn .6s linear infinite}
 
-  /* 右下角缩放抓手 ◀ */
-  .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;
-    display:grid;place-items:center;color:#c3c8cf;font-size:11px;
+  /* 顶部拖拽条：长按拖动移动窗口 */
+  .dragbar{height:20px;display:flex;align-items:center;justify-content:center;
+    flex:none;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+  .dragbar::before{content:'';width:34px;height:4px;border-radius:99px;
+    background:#e2e5ea;transition:background .15s}
+  .dragbar:active{cursor:grabbing}
+  .dragbar:active::before{background:#b9bfc7}
+
+  /* 右下角缩放把手 ◀ */
+  .grip{position:absolute;right:0;bottom:0;width:22px;height:22px;
+    display:grid;place-items:center;color:#c8cdd4;font-size:10px;
     line-height:1;user-select:none;-webkit-user-select:none;
     cursor:nwse-resize;touch-action:none;z-index:9;
     transform:rotate(45deg)}
@@ -119,6 +129,8 @@
 </head>
 <body>
 <div class="card" id="card">
+
+  <div class="dragbar" id="dragbar"></div>
 
   <div class="bar">
     <span class="pip" id="pip"></span>
@@ -222,27 +234,8 @@ function nameTime(n){
   return t ? `${+t[2]}/${+t[3]} ${t[4]}:${t[5]}` : '';
 }
 
-let lastH = 0;
-let maxH = 0;
-try{ maxH = Native.screenHeightDp() * 0.86; }catch(e){ maxH = 600; }
-
-function reportHeight(){
-  requestAnimationFrame(()=>{
-    const card = document.getElementById('card');
-    const h = card.scrollHeight;
-    if (h < 1) return;
-    if (Math.abs(h - lastH) < 1) return;
-    lastH = h;
-    // 超过屏幕 86% 就锁住，让 body 自己滚
-    if (h > maxH) {
-      document.getElementById('bodyEl').style.overflowY = 'auto';
-      try{ Native.reportHeight(maxH); }catch(e){}
-    } else {
-      document.getElementById('bodyEl').style.overflowY = 'visible';
-      try{ Native.reportHeight(h); }catch(e){}
-    }
-  });
-}
+/* 窗口高度由原生窗口决定，不需要上报 */
+function reportHeight(){}
 
 /* ---------- 本地存储 ---------- */
 function loadAudioState(){
@@ -565,7 +558,7 @@ const xBtn = $('#btnClose');
 
 xBtn.onclick = ()=>{
   if(xLong){ xLong = false; return; }
-  Native.close();
+  Native.closePanel();
 };
 xBtn.addEventListener('pointerdown', ()=>{
   xLong = false;
@@ -623,7 +616,7 @@ $('#btnApply').onclick = ()=>{
     if(r.ok){
       Native.toast('已替换 · 回 QQ 点那条语音试听');
       $('#foot').style.display = 'none';
-      setTimeout(()=> Native.close(), 420);
+      setTimeout(()=> Native.closePanel(), 420);
     }else{
       Native.toast('失败：'+(r.error||'未知'));
     }
@@ -666,54 +659,77 @@ function loadList(force){
   }
 }
 
-/* ---------- 右下角拖拽缩放 ---------- */
+/* ---------- 窗口拖动（顶部条） ---------- */
+(function initDrag(){
+  const bar = $('#dragbar');
+  if(!bar) return;
+  let active = false, lastX = 0, lastY = 0;
+
+  bar.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    active = true;
+    lastX = e.clientX; lastY = e.clientY;
+    try{ Native.dragStart(); }catch(err){}
+    bar.setPointerCapture && bar.setPointerCapture(e.pointerId);
+  });
+
+  bar.addEventListener('pointermove', e=>{
+    if(!active) return;
+    e.preventDefault();
+    // 累计位移：用「本次 - 上次」传递，原生只做累加
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    if(dx === 0 && dy === 0) return;
+    lastX = e.clientX; lastY = e.clientY;
+    try{ Native.dragBy(dx, dy); }catch(err){}
+  });
+
+  const stop = ()=>{
+    if(!active) return;
+    active = false;
+    try{ Native.dragEnd(); }catch(err){}
+  };
+  bar.addEventListener('pointerup', stop);
+  bar.addEventListener('pointercancel', stop);
+})();
+
+/* ---------- 窗口缩放（右下角 ◀） ---------- */
 (function initGrip(){
   const grip = $('#grip');
   if(!grip) return;
-  let dragging = false, startX = 0, startY = 0, startW = 0, startH = 0;
-  let longTimer = null, armed = false;
-
-  const px2dp = px => px / (window.devicePixelRatio || 1);
+  let active = false;
+  let lastX = 0, lastY = 0;
+  let sumX = 0, sumY = 0;
 
   grip.addEventListener('pointerdown', e=>{
     e.preventDefault();
     e.stopPropagation();
-    startX = e.clientX; startY = e.clientY;
-    const card = document.getElementById('card');
-    startW = card.offsetWidth;
-    startH = card.offsetHeight;
-    armed = false;
-    // 长按 260ms 才进入缩放，防误触
-    longTimer = setTimeout(()=>{
-      armed = true;
-      dragging = true;
-      grip.style.color = 'var(--ink)';
-      try{ Native.beginResize(); }catch(err){}
-    }, 260);
+    active = true;
+    lastX = e.clientX; lastY = e.clientY;
+    sumX = 0; sumY = 0;
+    try{ Native.resizeStart(); }catch(err){}
     grip.setPointerCapture && grip.setPointerCapture(e.pointerId);
   });
 
   grip.addEventListener('pointermove', e=>{
-    if(!dragging) return;
+    if(!active) return;
     e.preventDefault();
-    const dw = e.clientX - startX;
-    const dh = e.clientY - startY;
-    const w = Math.max(200, Math.min(window.innerWidth, startW + dw));
-    const h = Math.max(140, Math.min(window.innerHeight, startH + dh));
-    try{ Native.resizeTo(w, h); }catch(err){}
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    if(dx === 0 && dy === 0) return;
+    lastX = e.clientX; lastY = e.clientY;
+    // 累计总位移，每次用「基准尺寸 + 总位移」计算，原生不累积
+    sumX += dx; sumY += dy;
+    try{ Native.resizeBy(sumX, sumY); }catch(err){}
   });
 
-  const end = e=>{
-    if(longTimer){ clearTimeout(longTimer); longTimer = null; }
-    if(dragging){
-      dragging = false;
-      grip.style.color = '';
-      try{ Native.endResize(); }catch(err){}
-    }
-    armed = false;
+  const stop = ()=>{
+    if(!active) return;
+    active = false;
+    try{ Native.resizeEnd(); }catch(err){}
   };
-  grip.addEventListener('pointerup', end);
-  grip.addEventListener('pointercancel', end);
+  grip.addEventListener('pointerup', stop);
+  grip.addEventListener('pointercancel', stop);
 })();
 
 /* ---------- QQ 号自定义 ---------- */
@@ -749,6 +765,12 @@ try{
   $('#who').textContent = '初始化失败';
   showNudge(String(e.message||e));
 }
+
+/* 原生告知窗口尺寸（可选，用于自适应布局） */
+window.onPanelState = (w, h)=>{
+  document.documentElement.style.setProperty('--win-w', w + 'px');
+  document.documentElement.style.setProperty('--win-h', h + 'px');
+};
 
 window.onShizukuChanged = ()=>{
   const st = refresh();
