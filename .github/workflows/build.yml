@@ -116,3 +116,28 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 构建通知（配了 NOTIFY_WEBHOOK 才发）
+      - name: 通知构建完成
+        if: success()
+        env:
+          HOOK: ${{ secrets.NOTIFY_WEBHOOK }}
+        run: |
+          [ -z "$HOOK" ] && echo "跳过通知（未配 NOTIFY_WEBHOOK）" && exit 0
+          V=$(grep -oP 'android:versionName="\K[^"]+' android/AndroidManifest.xml | head -1)
+          SIZE=$(stat -c %s android/out/app-signed.apk)
+          URL="https://github.com/${{ github.repository }}/releases"
+          MSG="语音球 ${V} 构建完成（build ${{ github.run_number }}）；大小 ${SIZE} 字节；签名 CN=茶派；${URL}"
+          PAYLOAD=$(printf '{"msgtype":"text","text":{"content":"%s"}}' "$MSG")
+          curl -s -X POST "$HOOK" -H 'Content-Type: application/json' -d "$PAYLOAD"
+          echo "已发通知"
+
+      - name: 通知构建失败
+        if: failure()
+        env:
+          HOOK: ${{ secrets.NOTIFY_WEBHOOK }}
+        run: |
+          [ -z "$HOOK" ] && exit 0
+          MSG="语音球构建失败（build ${{ github.run_number }}），请看 Actions 日志"
+          PAYLOAD=$(printf '{"msgtype":"text","text":{"content":"%s"}}' "$MSG")
+          curl -s -X POST "$HOOK" -H 'Content-Type: application/json' -d "$PAYLOAD"
