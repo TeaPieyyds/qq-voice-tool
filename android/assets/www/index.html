@@ -27,7 +27,14 @@
     transition:background .2s}
   .pip.live{background:var(--live);box-shadow:0 0 0 3px rgba(18,161,80,.13)}
   .bar .who{font-size:13px;color:var(--sub);letter-spacing:.2px;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;
+    cursor:pointer;padding:3px 0;user-select:none;-webkit-user-select:none}
+  .bar .who:active{color:var(--ink)}
+  /* 后面加个小标记，提示可点 */
+  .bar .who::after{content:'';display:inline-block;width:0;height:0;
+    margin-left:5px;vertical-align:1px;
+    border-left:3.5px solid transparent;border-right:3.5px solid transparent;
+    border-top:4px solid #c8cdd4}
 
   .x{width:26px;height:26px;border:0;background:transparent;padding:0;flex:none;
     display:grid;place-items:center;border-radius:50%;position:relative}
@@ -104,6 +111,24 @@
   .spin{width:12px;height:12px;border:1.8px solid #dfe3e8;border-top-color:var(--ink);
     border-radius:50%;animation:sp .75s linear infinite;display:inline-block}
   @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* 内建输入/确认 sheet（WebView 里 prompt/confirm 不可靠） */
+  .sheetmask{position:fixed;inset:0;background:rgba(10,14,20,.42);
+    display:none;align-items:center;justify-content:center;padding:18px;z-index:99}
+  .sheetmask.on{display:flex}
+  .sheetbox{background:#fff;border-radius:16px;width:100%;max-width:280px;
+    padding:16px 16px 12px;box-shadow:0 12px 40px rgba(15,20,28,.28)}
+  .sheetbox .ttl{font-size:14px;font-weight:500;margin-bottom:4px}
+  .sheetbox .sub{font-size:11.5px;color:var(--sub);line-height:1.5;margin-bottom:10px}
+  .sheetbox input{width:100%;height:40px;border:1px solid var(--hair);border-radius:10px;
+    padding:0 12px;font-size:15px;font-family:inherit;color:var(--ink);
+    background:var(--wash);outline:none;box-sizing:border-box}
+  .sheetbox input:focus{border-color:#c7ccd4;background:#fff}
+  .sheetbox .btns{display:flex;gap:8px;margin-top:12px}
+  .sheetbox .btns button{flex:1;height:38px;border-radius:10px;border:0;
+    font-size:14px;font-family:inherit;font-weight:500}
+  .sheetbox .b-no{background:var(--wash);color:var(--ink)}
+  .sheetbox .b-ok{background:var(--ink);color:#fff}
 
   /* 刷新图标旋转 */
   @keyframes turn{to{transform:rotate(360deg)}}
@@ -194,6 +219,19 @@
   </div>
 
   <div class="grip" id="grip" title="长按拖动改大小"></div>
+
+  <!-- 内建输入框（WebView 里 prompt() 拿不到结果） -->
+  <div class="sheetmask" id="uinMask">
+    <div class="sheetbox">
+      <div class="ttl">QQ 号</div>
+      <div class="sub">只读这个号的 ptt 目录，留空恢复默认 3911006002</div>
+      <input id="uinInput" type="text" inputmode="numeric" maxlength="12" placeholder="3911006002">
+      <div class="btns">
+        <button class="b-no" id="uinCancel">取消</button>
+        <button class="b-ok" id="uinOk">确定</button>
+      </div>
+    </div>
+  </div>
 
   <div class="foot" id="foot" style="display:none">
     <button class="go" id="btnApply" disabled>替换并发送</button>
@@ -740,22 +778,40 @@ function loadList(force){
   grip.addEventListener('pointercancel', stop);
 })();
 
-/* ---------- QQ 号自定义 ---------- */
-$('#who').addEventListener('click', ()=>{
-  const cur = S.uin || '3911006002';
-  const v = prompt('填 QQ 号（当前 ' + cur + '，留空恢复默认 3911006002）', cur);
-  if(v === null) return;
-  const nv = String(v).trim();
+/* ---------- QQ 号自定义（用内建输入 sheet，WebView 里 prompt 拿不到值） ---------- */
+
+function openUinSheet(){
+  $('#uinInput').value = S.uin || '3911006002';
+  $('#uinMask').classList.add('on');
+  setTimeout(()=>{ try{ $('#uinInput').focus(); }catch(e){} }, 60);
+}
+function closeUinSheet(){
+  $('#uinMask').classList.remove('on');
+}
+function applyUin(){
+  const raw = String($('#uinInput').value || '').trim();
   let save;
-  if(nv === '') save = '3911006002';
-  else if(/^\d{4,12}$/.test(nv)) save = nv;
+  if(raw === '') save = '3911006002';
+  else if(/^\d{4,12}$/.test(raw)) save = raw;
   else { Native.toast('QQ 号要 4-12 位数字'); return; }
 
   S.uin = save;
   persistState();
   try{ Native.setUin(save); }catch(e){}
   $('#who').textContent = 'QQ ' + save;
+  closeUinSheet();
   loadList(true);
+}
+
+$('#who').addEventListener('click', openUinSheet);
+$('#uinCancel').addEventListener('click', closeUinSheet);
+$('#uinOk').addEventListener('click', applyUin);
+$('#uinMask').addEventListener('click', e=>{
+  if(e.target.id === 'uinMask') closeUinSheet();
+});
+$('#uinInput').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){ e.preventDefault(); applyUin(); }
+  if(e.key === 'Escape'){ e.preventDefault(); closeUinSheet(); }
 });
 
 /* ---------- 启动 ---------- */
