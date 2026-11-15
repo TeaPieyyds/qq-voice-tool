@@ -64,7 +64,7 @@ fi
   --manifest "$HERE/AndroidManifest.xml" \
   --min-sdk-version $MIN_SDK \
   --target-sdk-version $TARGET_SDK \
-  --version-code 3 --version-name "2.1" \
+  --version-code 4 --version-name "2.2" \
   $(ls -1 "$RES_FLAT"/*.flat 2>/dev/null | tr '\n' ' ')
 
 echo "[5/7] 打包 dex + assets"
@@ -90,15 +90,19 @@ echo "[6/7] zipalign"
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"
 
 echo "[7/7] 签名"
-KS="$HERE/debug.keystore"
+KS="$HERE/voicehelper.keystore"
+KEY_ALIAS=voicehelper
+KEY_PASS=android
+
 if [ ! -f "$KS" ]; then
-  keytool -genkeypair -keystore "$KS" -storepass android -keypass android \
-    -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
-    -dname "CN=Android Debug,O=Android,C=US" >/dev/null 2>&1
-  echo "  生成调试签名"
+  echo "  缺签名密钥 $KS，无法继续"
+  echo "  （请从仓库恢复，否则每次构建签名都会变）"
+  exit 1
 fi
+echo "  使用固定密钥：$(basename "$KS")"
+
 "$BT/apksigner" sign \
-  --ks "$KS" --ks-pass pass:android --key-pass pass:android \
+  --ks "$KS" --ks-pass pass:android --key-pass pass:android --ks-key-alias "$KEY_ALIAS" \
   --out "$OUT/app-signed.apk" "$OUT/aligned.apk"
 
 echo
