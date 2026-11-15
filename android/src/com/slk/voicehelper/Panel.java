@@ -133,6 +133,7 @@ final class Panel {
             shown = true;
             Log.i(TAG, "面板已显示 " + lp.width + "x" + lp.height + " @ " + lp.x + "," + lp.y);
             pushState();
+            drainPending();
         } catch (Exception e) {
             Log.e(TAG, "addView 失败", e);
             Toast.makeText(ctx, "面板打不开：" + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -335,6 +336,18 @@ final class Panel {
         lp.height = cardH;
         clampPos();
         try { wm.updateViewLayout(card, lp); } catch (Exception ignored) { }
+    }
+
+    /** 把 PickActivity 暂存的音频取过来（Activity/Service 时序错开时兜底） */
+    void drainPending() {
+        byte[] b = PickActivity.pendingBytes;
+        String n = PickActivity.pendingName;
+        if (b != null && b.length > 0) {
+            PickActivity.pendingBytes = null;
+            PickActivity.pendingName = null;
+            Log.i(TAG, "取到暂存音频 " + n + " " + b.length + " 字节");
+            setPicked(b, n);
+        }
     }
 
     /** PickActivity 选完文件后调这里 */
