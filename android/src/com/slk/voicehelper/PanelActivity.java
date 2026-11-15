@@ -149,8 +149,10 @@ public class PanelActivity extends Activity {
 
         // 小窗：宽度按 dp 定，高度先用一个初值，等 JS 报了再调
         // （overlay/Activity 里 WRAP_CONTENT 的 WebView 高度会塌成 0）
-        int cardW = Math.min(dp(CARD_MAX_DP),
-                getResources().getDisplayMetrics().widthPixels - dp(CARD_SIDE_DP) * 2);
+        int screenPx = getResources().getDisplayMetrics().widthPixels;
+        int cardW = Math.min(dp(CARD_MAX_DP), screenPx - dp(CARD_SIDE_DP) * 2);
+        if (cardW < screenPx * 0.88f) cardW = (int) (screenPx * 0.88f);
+        if (cardW > screenPx) cardW = screenPx;
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 cardW, dp(CARD_MIN_HEIGHT_DP));
         lp.gravity = Gravity.CENTER;
