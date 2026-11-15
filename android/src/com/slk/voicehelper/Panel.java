@@ -118,7 +118,6 @@ final class Panel {
 
             lp = new WindowManager.LayoutParams(w, h, type,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                            | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
                             | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                     PixelFormat.TRANSLUCENT);
             // 关键：用 TOP|START + 绝对 x/y，而不是 CENTER
@@ -196,14 +195,27 @@ final class Panel {
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
         card.addView(web, flp);
 
-        // 点面板外面 -> 关
-        card.setOnTouchListener((v, e) -> {
-            if (e.getActionMasked() == MotionEvent.ACTION_OUTSIDE) {
-                hide();
-                return true;
-            }
-            return false;
-        });
+        // 原生拖拽条：只用屏幕绝对坐标，不受窗口移动影响（不走 JS，避免漂移）
+        View dragBar = new View(ctx);
+        dragBar.setBackgroundColor(Color.TRANSPARENT);
+        FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, dp(22));
+        dlp.gravity = Gravity.TOP;
+        dragBar.setLayoutParams(dlp);
+        dragBar.setOnTouchListener(this::onDragTouch);
+        card.addView(dragBar);
+
+        // 原生缩放手柄：右下角
+        View grip = new View(ctx);
+        grip.setBackgroundColor(Color.TRANSPARENT);
+        FrameLayout.LayoutParams glp = new FrameLayout.LayoutParams(dp(28), dp(28));
+        glp.gravity = Gravity.BOTTOM | Gravity.END;
+        grip.setLayoutParams(glp);
+        grip.setOnTouchListener(this::onGripTouch);
+        card.addView(grip);
+
+        // 不做「点外面关窗」：选文件时系统选择器会让 overlay 收到 ACTION_OUTSIDE，
+        // 一关就选不到文件了。关窗统一由顶栏 X 按钮负责。
 
         try {
             if (server == null) {
@@ -235,6 +247,75 @@ final class Panel {
         if (screenH > 0 && lp.y + lp.height > screenH) lp.y = screenH - lp.height;
         if (lp.x < 0) lp.x = 0;
         if (lp.y < 0) lp.y = 0;
+    }
+
+    /* ---- 原生拖拽：只用 getRawX/getRawY（屏幕绝对坐标） ---- */
+    private float dragDownRawX, dragDownRawY;
+    private int dragDownLpX, dragDownLpY;
+
+    private boolean onDragTouch(View v, MotionEvent e) {
+        if (lp == null) return false;
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                dragDownRawX = e.getRawX();
+                dragDownRawY = e.getRawY();
+                dragDownLpX = lp.x;
+                dragDownLpY = lp.y;
+                return true;
+
+            case MotionEvent.ACTION_MOVE: {
+                // 关键：以「按下时的窗口位置」为基准 + 屏幕绝对位移
+                // 不用 e.getX()（那是相对本 View 的，窗口一移动就漂）
+                float dx = e.getRawX() - dragDownRawX;
+                float dy = e.getRawY() - dragDownRawY;
+                lp.x = dragDownLpX + Math.round(dx);
+                lp.y = dragDownLpY + Math.round(dy);
+                clampPos();
+                try { wm.updateViewLayout(card, lp); } catch (Exception ignored) { }
+                return true;
+            }
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                saveGeom();
+                return true;
+        }
+        return false;
+    }
+
+    /* ---- 原生缩放：同样用绝对坐标 + 基准尺寸 ---- */
+    private float gripDownRawX, gripDownRawY;
+    private int gripDownW, gripDownH;
+
+    private boolean onGripTouch(View v, MotionEvent e) {
+        if (lp == null) return false;
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                gripDownRawX = e.getRawX();
+                gripDownRawY = e.getRawY();
+                gripDownW = lp.width;
+                gripDownH = lp.height;
+                return true;
+
+            case MotionEvent.ACTION_MOVE: {
+                float dx = e.getRawX() - gripDownRawX;
+                float dy = e.getRawY() - gripDownRawY;
+                int w = gripDownW + Math.round(dx);
+                int h = gripDownH + Math.round(dy);
+                clampSize(w, h);
+                lp.width = cardW;
+                lp.height = cardH;
+                clampPos();
+                try { wm.updateViewLayout(card, lp); } catch (Exception ignored) { }
+                return true;
+            }
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                saveGeom();
+                return true;
+        }
+        return false;
     }
 
     /** 拖动窗口（顶部条调用），传的是像素增量 */
@@ -552,6 +633,26 @@ final class Panel {
             } catch (Exception e) {
                 return "{" + Q + "ok" + Q + ":false," + Q + "error" + Q + ":" + Q + esc(String.valueOf(e)) + Q + "}";
             }
+        }
+
+        /* ---------- 持久化：用 SharedPreferences，不靠 localStorage ----------
+           localStorage 按 origin 存，本地服务端口每次重启都变，origin 一变数据全没。 */
+
+        @JavascriptInterface
+        public String loadState() {
+            return "{" + Q + "pick" + Q + ":" + Q + esc(prefs.getString("pick", "")) + Q
+                    + "," + Q + "hist" + Q + ":" + Q + esc(prefs.getString("hist", "[]")) + Q
+                    + "," + Q + "uin" + Q + ":" + Q + esc(prefs.getString("qq_uin", "3911006002")) + Q
+                    + "}";
+        }
+
+        @JavascriptInterface
+        public void saveState(String pickJson, String histJson, String uin) {
+            prefs.edit()
+                    .putString("pick", pickJson == null ? "" : pickJson)
+                    .putString("hist", histJson == null ? "[]" : histJson)
+                    .putString("qq_uin", uin == null ? "3911006002" : uin)
+                    .apply();
         }
 
         @JavascriptInterface
