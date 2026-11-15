@@ -64,7 +64,7 @@ fi
   --manifest "$HERE/AndroidManifest.xml" \
   --min-sdk-version $MIN_SDK \
   --target-sdk-version $TARGET_SDK \
-  --version-code 8 --version-name "2.6" \
+  --version-code 9 --version-name "2.7" \
   $(ls -1 "$RES_FLAT"/*.flat 2>/dev/null | tr '\n' ' ')
 
 echo "[5/7] 打包 dex + assets"
