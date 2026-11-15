@@ -22,6 +22,9 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -73,6 +76,8 @@ public class PanelActivity extends Activity {
 
     FrameLayout.LayoutParams cardParams;
     int cardWidth;
+    boolean resizing;
+    int userWidth, userHeight;
 
     final Map<String, Double> durCache = new HashMap<>();
     final java.util.Set<String> deadRoots = new java.util.HashSet<>();
@@ -157,6 +162,14 @@ public class PanelActivity extends Activity {
                 cardW, dp(CARD_MIN_HEIGHT_DP));
         lp.gravity = Gravity.CENTER;
         root.addView(web, lp);
+        // 恢复上次手动调好的尺寸
+        userWidth = prefs.getInt("w", 0);
+        userHeight = prefs.getInt("h", 0);
+        if (userWidth > 0 && userHeight > 0) {
+            lp.width = userWidth;
+            lp.height = userHeight;
+        }
+
         cardParams = lp;
         cardWidth = cardW;
         setContentView(root);
@@ -219,16 +232,40 @@ public class PanelActivity extends Activity {
                 fileCallback = null;
             }
 
-            // 主路径：把 Uri 直接交给 JS
-            if (uri != null && web != null) {
+            // 主路径：App 自己读字节，存进 LocalServer，JS 从同源 /picked 取
+            if (uri != null && web != null && server != null) {
                 String name = queryName(uri);
-                final String js = "window.onAudioPicked && window.onAudioPicked("
-                        + jsStr(uri.toString()) + "," + jsStr(name) + ")";
-                runOnUiThread(() -> web.evaluateJavascript(js, null));
+                try {
+                    byte[] bytes = readUri(uri);
+                    if (bytes == null || bytes.length == 0) {
+                        Toast.makeText(this, "读不到这个文件", Toast.LENGTH_LONG).show();
+                    } else {
+                        server.setPicked(bytes, name);
+                        Log.i(TAG, "音频已缓存 " + bytes.length + " 字节: " + name);
+                        final String js = "window.onAudioPicked && window.onAudioPicked("
+                                + jsStr(name) + "," + bytes.length + ")";
+                        runOnUiThread(() -> web.evaluateJavascript(js, null));
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "readUri", e);
+                    Toast.makeText(this, "读取失败：" + e, Toast.LENGTH_LONG).show();
+                }
             }
             return;
         }
         super.onActivityResult(req, res, data);
+    }
+
+    /** 把 content:// 整个读成字节 */
+    byte[] readUri(Uri uri) throws IOException {
+        try (InputStream is = getContentResolver().openInputStream(uri)) {
+            if (is == null) return null;
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = is.read(buf)) > 0) bos.write(buf, 0, n);
+            return bos.toByteArray();
+        }
     }
 
     /** 从 Uri 查文件名 */
@@ -550,6 +587,8 @@ public class PanelActivity extends Activity {
         public void reportHeight(final float cssPx) {
             runOnUiThread(() -> {
                 if (cardParams == null) return;
+                if (resizing) return;              // 用户手动缩放时，不要自动改高
+                if (userHeight > 0) return;        // 一旦用户定过尺寸，就尊重它
                 int h = Math.round(cssPx * getResources().getDisplayMetrics().density);
                 int maxH = dp(CARD_MAX_HEIGHT_DP);
                 if (h > maxH) h = maxH;
@@ -570,6 +609,60 @@ public class PanelActivity extends Activity {
                     startService(i);
                 } catch (Exception ignored) { }
                 finish();
+            });
+        }
+
+        /** 自定义 QQ 号 */
+        @JavascriptInterface
+        public void setUin(String u) {
+            final String nv = u == null ? "" : u.trim();
+            cfgUin = nv;
+            cfgDir = "";                       // 清掉旧目录，逼它重扫
+            prefs.edit().putString("uin", cfgUin).putString("dir", "").apply();
+            runOnUiThread(() -> {
+                pttDir = null;
+                uin = null;
+                durCache.clear();
+            });
+        }
+
+        /** 开始缩放：解掉窗口锁定，允许改尺寸 */
+        @JavascriptInterface
+        public void beginResize() {
+            runOnUiThread(() -> {
+                if (cardParams == null) return;
+                resizing = true;
+            });
+        }
+
+        /** 拖动中：按 CSS px 改窗口尺寸 */
+        @JavascriptInterface
+        public void resizeTo(final float cssW, final float cssH) {
+            runOnUiThread(() -> {
+                if (cardParams == null) return;
+                float d = getResources().getDisplayMetrics().density;
+                int w = Math.round(cssW * d);
+                int h = Math.round(cssH * d);
+                int sw = getResources().getDisplayMetrics().widthPixels;
+                int sh = getResources().getDisplayMetrics().heightPixels;
+                if (w < dp(180)) w = dp(180);
+                if (h < dp(120)) h = dp(120);
+                if (w > sw) w = sw;
+                if (h > sh) h = sh;
+                userWidth = w;
+                userHeight = h;
+                cardParams.width = w;
+                cardParams.height = h;
+                web.setLayoutParams(cardParams);
+            });
+        }
+
+        /** 松手：记住尺寸 */
+        @JavascriptInterface
+        public void endResize() {
+            runOnUiThread(() -> {
+                resizing = false;
+                prefs.edit().putInt("w", userWidth).putInt("h", userHeight).apply();
             });
         }
 
