@@ -577,10 +577,16 @@ public class PanelActivity extends Activity {
             runOnUiThread(PanelActivity.this::openPicker);
         }
 
-        /** 屏幕宽度 dp，给前端算自适应用 */
+        /** 屏幕尺寸 dp，给前端算自适应用 */
         @JavascriptInterface
         public float screenWidthDp() {
             return getResources().getDisplayMetrics().widthPixels
+                    / getResources().getDisplayMetrics().density;
+        }
+
+        @JavascriptInterface
+        public float screenHeightDp() {
+            return getResources().getDisplayMetrics().heightPixels
                     / getResources().getDisplayMetrics().density;
         }
 
