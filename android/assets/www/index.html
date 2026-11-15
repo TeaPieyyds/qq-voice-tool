@@ -15,6 +15,7 @@
     color:var(--ink);-webkit-font-smoothing:antialiased}
 
   .card{
+    position:relative;
     background:#fff;border-radius:20px;overflow:hidden;
     box-shadow:0 10px 34px rgba(15,20,28,.20),0 1px 0 rgba(255,255,255,.7) inset;
     display:flex;flex-direction:column;width:100%;
@@ -101,6 +102,19 @@
   .spin{width:12px;height:12px;border:1.8px solid #dfe3e8;border-top-color:var(--ink);
     border-radius:50%;animation:sp .75s linear infinite;display:inline-block}
   @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* 刷新图标旋转 */
+  @keyframes turn{to{transform:rotate(360deg)}}
+  .act.spinning svg{animation:turn .6s linear infinite}
+
+  /* 右下角缩放抓手 ◀ */
+  .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;
+    display:grid;place-items:center;color:#c3c8cf;font-size:11px;
+    line-height:1;user-select:none;-webkit-user-select:none;
+    cursor:nwse-resize;touch-action:none;z-index:9;
+    transform:rotate(45deg)}
+  .grip:active{color:var(--ink)}
+  .grip::before{content:'\25C0'}
 </style>
 </head>
 <body>
@@ -155,12 +169,19 @@
     <div id="qqWrap" style="display:none">
       <div class="hd">
         <span class="lab">QQ 最新一条</span>
-        <button class="act" id="btnRefreshQQ">刷新</button>
+        <button class="act" id="btnRefreshQQ">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.4" stroke-linecap="round">
+            <path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/>
+          </svg>刷新
+        </button>
       </div>
       <div id="qqLatest"></div>
     </div>
 
   </div>
+
+  <div class="grip" id="grip" title="长按拖动改大小"></div>
 
   <div class="foot" id="foot" style="display:none">
     <button class="go" id="btnApply" disabled>替换并发送</button>
@@ -327,17 +348,27 @@ function renderAudioHist(){
       </div>
       <button class="kill" data-i="${idx}" aria-label="删除"></button>`;
 
-    el.onclick = e=>{
-      if(e.target.classList.contains('kill')) return;
-      useAudioItem(it);
-    };
-    el.querySelector('.kill').onclick = e=>{
+    // 删除按钮：先挂上，并阻断一切冒泡到行的点击
+    const kill = el.querySelector('.kill');
+    const doKill = e=>{
+      e.preventDefault();
       e.stopPropagation();
-      S.audioHist.splice(idx,1);
+      e.stopImmediatePropagation();
+      const i = S.audioHist.indexOf(it);
+      if(i < 0) return;
+      S.audioHist.splice(i, 1);
       saveAudioHist();
       if(isSel(it)){ S.audioPick = null; S.token = null; saveAudioPick(); }
       renderAudio();
       Native.toast('已移除');
+    };
+    kill.addEventListener('click', doKill, true);
+    kill.addEventListener('pointerdown', e=>{ e.stopPropagation(); }, true);
+
+    // 行点击：只有点到行的空白处才选中
+    el.onclick = e=>{
+      if(e.target.closest('.kill')) return;
+      useAudioItem(it);
     };
     box.appendChild(el);
   });
@@ -349,7 +380,7 @@ async function useAudioItem(it){
   $('#pickName').textContent = it.name;
   $('#pickMeta').textContent = '读取中…';
   try{
-    const f = await uriToFile(it.uri, it.name);
+    const f = await fetchPicked(it.name);
     const { pv } = await build(f);
     S.audioPick = Object.assign({}, it, {
       dur: S.info.dur, durStr: fmtDur(S.info.dur),
@@ -368,34 +399,27 @@ async function useAudioItem(it){
   }
 }
 
-function uriToFile(uri, name){
-  return new Promise((res, rej)=>{
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', uri, true);
-    xhr.responseType = 'blob';
-    xhr.onload = ()=>{
-      if(xhr.status === 200 || xhr.status === 0)
-        res(new File([xhr.response], name || 'audio', {type: xhr.response.type || 'audio/mpeg'}));
-      else rej(new Error('HTTP ' + xhr.status));
-    };
-    xhr.onerror = ()=> rej(new Error('读取失败'));
-    xhr.send();
-  });
+/* 从同源 /picked 取音频字节，避开 content:// 跨域 */
+async function fetchPicked(name){
+  const r = await fetch('/picked', {cache:'no-store'});
+  if(!r.ok) throw new Error('取不到音频 HTTP ' + r.status);
+  const blob = await r.blob();
+  if(!blob.size) throw new Error('音频为空');
+  return new File([blob], name || 'audio', {type: blob.type || 'audio/mpeg'});
 }
 
 /* Activity 选完文件回调进来 */
-window.onAudioPicked = async (uri, name)=>{
-  S.pickedUri = uri;
+window.onAudioPicked = async (name, size)=>{
   $('#pickName').textContent = name || '音频';
   $('#pickMeta').textContent = '读取中…';
   $('#btnPick').textContent = '转换中';
   $('#btnPick').disabled = true;
   try{
-    const f = await uriToFile(uri, name);
+    const f = await fetchPicked(name);
     const { pv } = await build(f);
     const item = {
       name: name || 'audio',
-      uri: uri,
+      uri: '/picked:' + (name || 'audio'),
       dur: S.info.dur, durStr: fmtDur(S.info.dur),
       size: S.info.size, srcRate: S.info.srcRate, ch: S.info.ch
     };
@@ -409,6 +433,7 @@ window.onAudioPicked = async (uri, name)=>{
     $('#player').src = URL.createObjectURL(new Blob([pv], {type:'audio/wav'}));
     $('#preview').style.display = 'block';
     renderAudio();
+    autoRefreshAfterPick();     // 选完自动刷 QQ 缓存
   }catch(err){
     Native.toast('转换失败：' + (err.message||err));
     $('#pickName').textContent = '转换失败，重选';
@@ -570,7 +595,24 @@ $('#btnClearAudio').onclick = ()=>{
   Native.toast('音频记录已清空');
 };
 
-$('#btnRefreshQQ').onclick = ()=> loadList(true);
+$('#btnRefreshQQ').onclick = e=>{
+  const b = e.currentTarget;
+  if(b.classList.contains('spinning')) return;
+  b.classList.add('spinning');
+  try{ loadList(true); }finally{
+    setTimeout(()=> b.classList.remove('spinning'), 620);
+  }
+};
+
+/* 选完音频后自动刷新一次 QQ 缓存 */
+async function autoRefreshAfterPick(){
+  const b = $('#btnRefreshQQ');
+  if(!b) return;
+  b.classList.add('spinning');
+  try{ loadList(true); }finally{
+    setTimeout(()=> b.classList.remove('spinning'), 620);
+  }
+}
 
 $('#btnApply').onclick = ()=>{
   if(!S.token || !S.latest || S.busy) return;
@@ -624,8 +666,80 @@ function loadList(force){
   }
 }
 
+/* ---------- 右下角拖拽缩放 ---------- */
+(function initGrip(){
+  const grip = $('#grip');
+  if(!grip) return;
+  let dragging = false, startX = 0, startY = 0, startW = 0, startH = 0;
+  let longTimer = null, armed = false;
+
+  const px2dp = px => px / (window.devicePixelRatio || 1);
+
+  grip.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    startX = e.clientX; startY = e.clientY;
+    const card = document.getElementById('card');
+    startW = card.offsetWidth;
+    startH = card.offsetHeight;
+    armed = false;
+    // 长按 260ms 才进入缩放，防误触
+    longTimer = setTimeout(()=>{
+      armed = true;
+      dragging = true;
+      grip.style.color = 'var(--ink)';
+      try{ Native.beginResize(); }catch(err){}
+    }, 260);
+    grip.setPointerCapture && grip.setPointerCapture(e.pointerId);
+  });
+
+  grip.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    e.preventDefault();
+    const dw = e.clientX - startX;
+    const dh = e.clientY - startY;
+    const w = Math.max(200, Math.min(window.innerWidth, startW + dw));
+    const h = Math.max(140, Math.min(window.innerHeight, startH + dh));
+    try{ Native.resizeTo(w, h); }catch(err){}
+  });
+
+  const end = e=>{
+    if(longTimer){ clearTimeout(longTimer); longTimer = null; }
+    if(dragging){
+      dragging = false;
+      grip.style.color = '';
+      try{ Native.endResize(); }catch(err){}
+    }
+    armed = false;
+  };
+  grip.addEventListener('pointerup', end);
+  grip.addEventListener('pointercancel', end);
+})();
+
+/* ---------- QQ 号自定义 ---------- */
+const LS_UIN = 'qq_uin_v1';
+function currentUin(){
+  try{ return localStorage.getItem(LS_UIN) || '3911006002'; }catch(e){ return '3911006002'; }
+}
+
+$('#who').addEventListener('click', ()=>{
+  const old = currentUin();
+  const v = prompt('填 QQ 号（当前 ' + old + '，留空恢复默认）', old);
+  if(v === null) return;
+  const nv = String(v).trim();
+  const save = /^\d{4,12}$/.test(nv) ? nv : (nv === '' ? '3911006002' : null);
+  if(save === null){ Native.toast('QQ 号要 4-12 位数字'); return; }
+  try{ localStorage.setItem(LS_UIN, save); }catch(e){}
+  try{ Native.setUin(save); }catch(e){}
+  $('#who').textContent = 'QQ ' + save;
+  loadList(true);
+});
+
 /* ---------- 启动 ---------- */
 loadAudioState();
+
+try{ Native.setUin(currentUin()); }catch(e){}
+
 try{
   const st = refresh();
   renderAudio();
