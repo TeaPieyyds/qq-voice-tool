@@ -89,20 +89,19 @@ PY
 echo "[6/7] zipalign"
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"
 
-echo "[7/7] 签名"
-KS="$HERE/voicehelper.keystore"
-KEY_ALIAS=voicehelper
-KEY_PASS=android
+echo "[7/7] 签名（Rinkai pk8 + x509）"
+KS_PK8="$HERE/keys/Rinkai.pk8"
+KS_PEM="$HERE/keys/Rinkai.x509.pem"
 
-if [ ! -f "$KS" ]; then
-  echo "  缺签名密钥 $KS，无法继续"
-  echo "  （请从仓库恢复，否则每次构建签名都会变）"
+if [ ! -f "$KS_PK8" ] || [ ! -f "$KS_PEM" ]; then
+  echo "  缺签名密钥：$KS_PK8 / $KS_PEM"
   exit 1
 fi
-echo "  使用固定密钥：$(basename "$KS")"
+echo "  使用 Rinkai 密钥"
 
 "$BT/apksigner" sign \
-  --ks "$KS" --ks-pass pass:android --key-pass pass:android --ks-key-alias "$KEY_ALIAS" \
+  --key "$KS_PK8" \
+  --cert "$KS_PEM" \
   --out "$OUT/app-signed.apk" "$OUT/aligned.apk"
 
 echo
