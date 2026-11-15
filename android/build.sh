@@ -89,20 +89,62 @@ PY
 echo "[6/7] zipalign"
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"
 
-echo "[7/7] 签名（Rinkai pk8 + x509）"
-KS_PK8="$HERE/keys/Rinkai.pk8"
-KS_PEM="$HERE/keys/Rinkai.x509.pem"
+echo "[7/7] 签名（固定使用 Rinkai）"
+
+# 签名密钥解析顺序（任何 CI 都能用）：
+#   1) 环境变量 SIGN_KEY / SIGN_CERT（绝对路径）
+#   2) 环境变量 SIGN_KEY_B64 / SIGN_CERT_B64（base64，适合放 Secrets）
+#   3) 仓库内 keys/Rinkai.pk8 + keys/Rinkai.x509.pem
+SIGN_TMP="$OUT/sign"
+mkdir -p "$SIGN_TMP"
+
+if [ -n "$SIGN_KEY" ] && [ -n "$SIGN_CERT" ]; then
+  KS_PK8="$SIGN_KEY"
+  KS_PEM="$SIGN_CERT"
+  echo "  来源：环境变量 SIGN_KEY / SIGN_CERT"
+elif [ -n "$SIGN_KEY_B64" ] && [ -n "$SIGN_CERT_B64" ]; then
+  KS_PK8="$SIGN_TMP/Rinkai.pk8"
+  KS_PEM="$SIGN_TMP/Rinkai.x509.pem"
+  printf '%s' "$SIGN_KEY_B64"  | base64 -d > "$KS_PK8"
+  printf '%s' "$SIGN_CERT_B64" | base64 -d > "$KS_PEM"
+  chmod 600 "$KS_PK8"
+  echo "  来源：环境变量 SIGN_KEY_B64 / SIGN_CERT_B64"
+else
+  KS_PK8="$HERE/keys/Rinkai.pk8"
+  KS_PEM="$HERE/keys/Rinkai.x509.pem"
+  echo "  来源：仓库 keys/"
+fi
 
 if [ ! -f "$KS_PK8" ] || [ ! -f "$KS_PEM" ]; then
-  echo "  缺签名密钥：$KS_PK8 / $KS_PEM"
+  echo ""
+  echo "  ✗ 找不到签名密钥，拒绝用临时签名构建"
+  echo "    pk8 : $KS_PK8"
+  echo "    pem : $KS_PEM"
+  echo "    三种提供方式："
+  echo "      SIGN_KEY / SIGN_CERT              绝对路径"
+  echo "      SIGN_KEY_B64 / SIGN_CERT_B64      base64（推荐放 CI Secrets）"
+  echo "      keys/Rinkai.pk8 + keys/Rinkai.x509.pem   随仓库提交"
   exit 1
 fi
-echo "  使用 Rinkai 密钥"
 
 "$BT/apksigner" sign \
   --key "$KS_PK8" \
   --cert "$KS_PEM" \
   --out "$OUT/app-signed.apk" "$OUT/aligned.apk"
+
+# 自检：确认签出来的就是 Rinkai
+EXPECT_FP="${SIGN_EXPECT_SHA256:-bcfb3350cf10e3524cb59714d51f0f165d5bc10391acadec67572375233ad79a}"
+VERIFY_OUT="$("$BT/apksigner" verify --print-certs "$OUT/app-signed.apk" 2>/dev/null)"
+GOT_FP="$(echo "$VERIFY_OUT" | grep -i "certificate SHA-256 digest" | head -1 | sed "s/.*digest: *//" | tr -d " ")"
+
+if [ -n "$EXPECT_FP" ] && [ "$GOT_FP" != "$EXPECT_FP" ]; then
+  echo ""
+  echo "  X 签名指纹不对，已中止"
+  echo "    期望 $EXPECT_FP"
+  echo "    实际 $GOT_FP"
+  exit 1
+fi
+echo "  指纹校验通过：$GOT_FP"
 
 echo
 echo "完成：$OUT/app-signed.apk"
