@@ -135,7 +135,7 @@
         </div>
         <div class="txt">
           <div class="t1" id="pickName">还没选</div>
-          <div class="t2" id="pickMeta">点右上「选择」挑一个音频</div>
+          <div class="t2" id="pickMeta">点右上角「选择」挑一个音频</div>
         </div>
       </div>
 
@@ -295,7 +295,7 @@ function renderAudio(){
       (a.srcRate ? ` · 源 ${(a.srcRate/1000).toFixed(1)}k/${a.ch===2?'立体声':'单声道'}` : '');
   }else{
     $('#pickName').textContent = '还没选';
-    $('#pickMeta').textContent = '点右上「选择」挑一个音频';
+    $('#pickMeta').textContent = '点右上角「选择」挑一个音频';
     $('#preview').style.display = 'none';
   }
   renderAudioHist();
