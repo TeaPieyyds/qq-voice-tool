@@ -15,19 +15,23 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 /**
- * 悬浮球前台服务。
+ * 悬浮球 + 面板窗口的前台服务。
  *
- * 关键：球用 ImageView + Drawable 绘制，不用自绘 View。
- * ColorOS 上自绘 View 放在 APPLICATION_OVERLAY 里 surface 会变成 0x0。
+ * 球和面板都是 WindowManager overlay，和 Activity 无关。
+ * 球：轻点 = 开关面板，拖动 = 移动并吸边
+ * 面板：顶部条拖动 = 移动窗口，右下角 ◀ 拖动 = 改大小
  */
 public class FloatService extends Service {
 
@@ -37,6 +41,8 @@ public class FloatService extends Service {
     static final String CH_ID = "ball";
 
     static FloatService live;
+
+    private final Handler ui = new Handler(Looper.getMainLooper());
 
     private WindowManager wm;
     private View ball;
@@ -50,6 +56,13 @@ public class FloatService extends Service {
     private long downTime;
     private static final long TAP_MS = 260;
 
+    private Panel panel;
+
+    void runOnUi(Runnable r) { ui.post(r); }
+
+    /** 给 PickActivity 用：拿到当前面板 */
+    Panel panelRef() { return panel; }
+
     @Override
     public IBinder onBind(Intent i) { return null; }
 
@@ -59,6 +72,7 @@ public class FloatService extends Service {
         live = this;
         startForeground(1, buildNotification());
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+        panel = new Panel(this);
     }
 
     @Override
@@ -66,7 +80,7 @@ public class FloatService extends Service {
         String a = intent == null ? ACTION_SHOW : intent.getAction();
         if (ACTION_HIDE.equals(a)) {
             Log.i(TAG, "收到隐藏指令");
-            stopSelf();
+            stopSelfAndBall();
             return START_NOT_STICKY;
         }
         if (!added) showBall();
@@ -78,7 +92,18 @@ public class FloatService extends Service {
         Log.i(TAG, "服务销毁");
         live = null;
         hideBall();
+        if (panel != null) { panel.destroy(); panel = null; }
         super.onDestroy();
+    }
+
+    /** 彻底停掉：关面板 + 去球 + 停服务 */
+    void stopSelfAndBall() {
+        runOnUi(() -> {
+            if (panel != null) panel.hide();
+            hideBall();
+            stopForeground(true);
+            stopSelf();
+        });
     }
 
     /* ---------------- 通知 ---------------- */
@@ -98,8 +123,6 @@ public class FloatService extends Service {
         PendingIntent pi = PendingIntent.getActivity(this, 0,
                 new Intent(this, MainActivity.class),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-        // 通知里加一个"关闭悬浮球"按钮
         PendingIntent stopPi = PendingIntent.getService(this, 1,
                 new Intent(this, FloatService.class).setAction(ACTION_HIDE),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -108,18 +131,16 @@ public class FloatService extends Service {
                 ? new Notification.Builder(this, CH_ID)
                 : new Notification.Builder(this);
         return b.setContentTitle("语音球在运行")
-                .setContentText("轻点悬浮球开始替换语音")
+                .setContentText("轻点悬浮球打开面板")
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .setOngoing(true)
                 .setContentIntent(pi)
-                .addAction(new Notification.Action.Builder(
-                        null, "关闭悬浮球", stopPi).build())
+                .addAction(new Notification.Action.Builder(null, "关闭悬浮球", stopPi).build())
                 .build();
     }
 
     /* ---------------- 球 ---------------- */
 
-    /** 用 Drawable 画球：深色圆 + 一道白色正弦波 */
     private Drawable buildBallDrawable(int size) {
         GradientDrawable circle = new GradientDrawable();
         circle.setShape(GradientDrawable.OVAL);
@@ -134,7 +155,6 @@ public class FloatService extends Service {
         return ld;
     }
 
-    /** 画一道正弦波（带两端包络） */
     private static class WaveDrawable extends Drawable {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final float size;
@@ -156,11 +176,11 @@ public class FloatService extends Service {
 
             Path path = new Path();
             boolean first = true;
-            int steps = (int) (span * 2);
+            int steps = Math.max(24, (int) (span * 2));
             for (int i = 0; i <= steps; i++) {
-                float x = cx - span + (i / (float) steps) * span * 2;
                 float t = i / (float) steps;
-                float env = (float) Math.sin(Math.PI * t);       // 两端收窄
+                float x = cx - span + t * span * 2;
+                float env = (float) Math.sin(Math.PI * t);
                 float y = cy + (float) Math.sin(t * Math.PI * 4) * amp * env;
                 if (first) { path.moveTo(x, y); first = false; }
                 else path.lineTo(x, y);
@@ -175,17 +195,16 @@ public class FloatService extends Service {
 
     private void showBall() {
         int size = dp(54);
-        android.widget.ImageView iv = new android.widget.ImageView(this);
+        ImageView iv = new ImageView(this);
         iv.setImageDrawable(buildBallDrawable(size));
-        iv.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);
+        iv.setScaleType(ImageView.ScaleType.FIT_XY);
         ball = iv;
 
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
 
-        lp = new WindowManager.LayoutParams(
-                size, size, type,
+        lp = new WindowManager.LayoutParams(size, size, type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.START;
@@ -200,10 +219,9 @@ public class FloatService extends Service {
         try {
             wm.addView(ball, lp);
             added = true;
-            Log.i(TAG, "球已添加 x=" + lp.x + " y=" + lp.y + " size=" + size
-                    + " screen=" + screenW + "x" + screenH);
+            Log.i(TAG, "球已添加 " + size + "px @ " + lp.x + "," + lp.y);
         } catch (Exception e) {
-            Log.e(TAG, "添加失败", e);
+            Log.e(TAG, "加球失败", e);
             Toast.makeText(this, "悬浮窗添加失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
             stopSelf();
         }
@@ -236,7 +254,7 @@ public class FloatService extends Service {
                 if (dragging) {
                     lp.x = (int) (downX + dx);
                     lp.y = (int) (downY + dy);
-                    clamp();
+                    clampBall();
                     try { wm.updateViewLayout(ball, lp); } catch (Exception ignored) { }
                 }
                 return true;
@@ -247,8 +265,8 @@ public class FloatService extends Service {
                 v.setAlpha(1f);
                 boolean quick = System.currentTimeMillis() - downTime < TAP_MS;
                 if (!dragging && quick) {
-                    Log.i(TAG, "点击 -> 开面板");
-                    openPanel();
+                    Log.i(TAG, "点球 -> 切换面板");
+                    if (panel != null) panel.toggle();
                 } else if (dragging) {
                     snapToEdge();
                 }
@@ -258,7 +276,7 @@ public class FloatService extends Service {
         return false;
     }
 
-    private void clamp() {
+    private void clampBall() {
         int w = lp.width;
         if (lp.x < 0) lp.x = 0;
         if (lp.y < 0) lp.y = 0;
@@ -275,24 +293,12 @@ public class FloatService extends Service {
         ball.post(new Runnable() {
             @Override public void run() {
                 float p = Math.min(1f, (System.currentTimeMillis() - t0) / (float) dur);
-                float e = 1 - (1 - p) * (1 - p);
-                lp.x = (int) (from + (to - from) * e);
+                float ee = 1 - (1 - p) * (1 - p);
+                lp.x = (int) (from + (to - from) * ee);
                 try { wm.updateViewLayout(ball, lp); } catch (Exception ignored) { }
                 if (p < 1f) ball.postDelayed(this, 16);
             }
         });
-    }
-
-    private void openPanel() {
-        // 面板已经开着就关掉（球 = 开关）
-        if (PanelActivity.live != null) {
-            Log.i(TAG, "面板已开着 -> 关掉");
-            try { PanelActivity.live.finish(); } catch (Exception ignored) { }
-            return;
-        }
-        Intent i = new Intent(this, PanelActivity.class);
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        startActivity(i);
     }
 
     private int dp(int v) {
