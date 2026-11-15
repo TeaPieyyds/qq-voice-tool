@@ -34,12 +34,17 @@ import java.util.Map;
 import rikka.shizuku.Shizuku;
 
 /**
- * 面板。整个 Activity 是透明的，只有中间一块卡片可见；
- * 点卡片外面任何地方 = 关掉。
+ * 面板：小窗模式（不是全屏）。
+ *
+ * 只有一个真正铺满屏幕的透明层，卡片本身按 dp 定宽，高度由 JS 上报。
+ * 点卡片外面 = 关窗；点悬浮球 = 开关切换。
  */
 public class PanelActivity extends Activity {
 
     static final String TAG = "QQVoicePanel";
+
+    /** 当前活着的面板，供 FloatService 判断开关 */
+    static PanelActivity live;
 
     static final String[] QQ_ROOTS = {
             "/sdcard/Android/data/com.tencent.mobileqq/Tencent/MobileQQ",
@@ -60,27 +65,35 @@ public class PanelActivity extends Activity {
     ValueCallback<Uri[]> fileCallback;
     static final int REQ_FILE = 1001;
 
+    /** 卡片宽度：不够屏宽就用屏宽减两侧留白 */
+    static final int CARD_MAX_DP = 340;
+    static final int CARD_SIDE_DP = 16;
+    static final int CARD_MIN_HEIGHT_DP = 120;
+    static final int CARD_MAX_HEIGHT_DP = 560;
+
+    FrameLayout.LayoutParams cardParams;
+    int cardWidth;
+
     final Map<String, Double> durCache = new HashMap<>();
     final java.util.Set<String> deadRoots = new java.util.HashSet<>();
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        live = this;
 
         prefs = getSharedPreferences("cfg", MODE_PRIVATE);
         cfgUin = prefs.getString("uin", "");
         cfgDir = prefs.getString("dir", "");
 
-        // 透明背景
+        // 背景全透明；小窗不要整屏变暗
         getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        WindowManager.LayoutParams wlp = getWindow().getAttributes();
-        wlp.dimAmount = 0.32f;
-        getWindow().setAttributes(wlp);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
 
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.TRANSPARENT);
-        root.setOnClickListener(v -> finish());   // 点外面关掉
+        root.setOnClickListener(v -> finish());   // 点卡片外面 = 关窗
 
         web = new WebView(this);
         web.setBackgroundColor(Color.TRANSPARENT);
@@ -92,7 +105,7 @@ public class PanelActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
-        s.setAllowContentAccess(false);
+        s.setAllowContentAccess(true);   // 要读 content:// 音频 Uri
 
         web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new WebChromeClient() {
@@ -123,16 +136,8 @@ public class PanelActivity extends Activity {
             @Override
             public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 fileCallback = cb;
-                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("audio/*");
-                try {
-                    startActivityForResult(Intent.createChooser(i, "选择音频"), REQ_FILE);
-                    return true;
-                } catch (Exception e) {
-                    fileCallback = null;
-                    return false;
-                }
+                openPicker();
+                return true;
             }
         });
         web.addJavascriptInterface(new Bridge(), "Native");
@@ -142,12 +147,16 @@ public class PanelActivity extends Activity {
             runOnUiThread(() -> Toast.makeText(this, ok ? "Shizuku 已授权" : "Shizuku 授权被拒绝", Toast.LENGTH_SHORT).show());
         });
 
-        // 卡片：WebView 铺满整个 Activity，具体布局交给 HTML 控制
-        // （WRAP_CONTENT 的 WebView 高度会塌成 0，这是之前面板空白的原因）
+        // 小窗：宽度按 dp 定，高度先用一个初值，等 JS 报了再调
+        // （overlay/Activity 里 WRAP_CONTENT 的 WebView 高度会塌成 0）
+        int cardW = Math.min(dp(CARD_MAX_DP),
+                getResources().getDisplayMetrics().widthPixels - dp(CARD_SIDE_DP) * 2);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+                cardW, dp(CARD_MIN_HEIGHT_DP));
         lp.gravity = Gravity.CENTER;
         root.addView(web, lp);
+        cardParams = lp;
+        cardWidth = cardW;
         setContentView(root);
 
         try {
@@ -170,23 +179,108 @@ public class PanelActivity extends Activity {
         finish();
     }
 
+    /** 打开系统文件选择器；用 OPEN_DOCUMENT 才能拿持久读权限 */
+    void openPicker() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("audio/*");
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try {
+            startActivityForResult(i, REQ_FILE);
+        } catch (Exception e) {
+            Log.e(TAG, "picker", e);
+            fileCallback = null;
+            Toast.makeText(this, "打不开文件选择器", Toast.LENGTH_LONG).show();
+        }
+    }
+
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         if (req == REQ_FILE) {
-            Uri[] uris = null;
-            if (res == RESULT_OK && data != null && data.getData() != null) {
-                uris = new Uri[]{data.getData()};
+            Uri uri = (res == RESULT_OK && data != null) ? data.getData() : null;
+
+            if (uri != null) {
+                // 拿持久读权限，重启后还能读
+                try {
+                    getContentResolver().takePersistableUriPermission(
+                            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    Log.i(TAG, "持久权限已拿: " + uri);
+                } catch (Exception e) {
+                    Log.w(TAG, "持久权限失败: " + e);
+                }
             }
-            if (fileCallback != null) fileCallback.onReceiveValue(uris);
-            fileCallback = null;
+
+            // 给 WebView 的 onShowFileChooser 回调（保底：<input type=file> 路径）
+            if (fileCallback != null) {
+                fileCallback.onReceiveValue(uri == null ? null : new Uri[]{uri});
+                fileCallback = null;
+            }
+
+            // 主路径：把 Uri 直接交给 JS
+            if (uri != null && web != null) {
+                String name = queryName(uri);
+                final String js = "window.onAudioPicked && window.onAudioPicked("
+                        + jsStr(uri.toString()) + "," + jsStr(name) + ")";
+                runOnUiThread(() -> web.evaluateJavascript(js, null));
+            }
             return;
         }
         super.onActivityResult(req, res, data);
     }
 
+    /** 从 Uri 查文件名 */
+    String queryName(Uri uri) {
+        String name = null;
+        try (android.database.Cursor c = getContentResolver()
+                .query(uri, null, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) name = c.getString(idx);
+            }
+        } catch (Exception ignored) { }
+        if (name == null || name.isEmpty()) {
+            name = uri.getLastPathSegment();
+            if (name == null) name = "audio";
+        }
+        return name;
+    }
+
+    /** 避开转义字符：全部用 char 拼 */
+    static final String Q   = String.valueOf((char) 34);
+    static final String QS  = String.valueOf((char) 92) + String.valueOf((char) 34);
+    static final String BS2 = String.valueOf((char) 92) + String.valueOf((char) 92);
+    static final String NLS = String.valueOf((char) 92) + String.valueOf((char) 110);
+    static final String CRS = String.valueOf((char) 92) + String.valueOf((char) 114);
+    static final char   NL  = 10;
+    static final char   CR  = 13;
+
+    /** Java 字符串 -> JS 字符串字面量 */
+    static String jsStr(String s) {
+        StringBuilder b = new StringBuilder();
+        b.append(Q);
+        for (char c : s.toCharArray()) {
+            if (c == 34) b.append(QS);
+            else if (c == 92) b.append(BS2);
+            else if (c == NL) b.append(NLS);
+            else if (c == CR) b.append(CRS);
+            else b.append(c);
+        }
+        return b.append(Q).toString();
+    }
+
     @Override
     protected void onDestroy() {
+        if (live == this) live = null;
         if (server != null) server.stopServer();
+        if (web != null) {
+            try {
+                root.removeView(web);
+                web.stopLoading();
+                web.destroy();
+            } catch (Exception ignored) { }
+            web = null;
+        }
         super.onDestroy();
     }
 
@@ -447,6 +541,47 @@ public class PanelActivity extends Activity {
         @JavascriptInterface
         public void close() {
             runOnUiThread(PanelActivity.this::finish);
+        }
+
+        /** JS 上报卡片实际高度， Activity 跟着调窗口 */
+        @JavascriptInterface
+        public void reportHeight(final float cssPx) {
+            runOnUiThread(() -> {
+                if (cardParams == null) return;
+                int h = Math.round(cssPx * getResources().getDisplayMetrics().density);
+                int maxH = dp(CARD_MAX_HEIGHT_DP);
+                if (h > maxH) h = maxH;
+                if (h < dp(80)) h = dp(80);
+                if (cardParams.height == h) return;
+                cardParams.height = h;
+                web.setLayoutParams(cardParams);
+            });
+        }
+
+        /** 长按 × 用：彻底关掉悬浮球 */
+        @JavascriptInterface
+        public void killBall() {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(PanelActivity.this, FloatService.class);
+                    i.setAction(FloatService.ACTION_HIDE);
+                    startService(i);
+                } catch (Exception ignored) { }
+                finish();
+            });
+        }
+
+        /** 前端点「选择」-> 开系统文件选择器 */
+        @JavascriptInterface
+        public void pickAudio() {
+            runOnUiThread(PanelActivity.this::openPicker);
+        }
+
+        /** 屏幕宽度 dp，给前端算自适应用 */
+        @JavascriptInterface
+        public float screenWidthDp() {
+            return getResources().getDisplayMetrics().widthPixels
+                    / getResources().getDisplayMetrics().density;
         }
 
         /** 从球里隐藏自己 */
