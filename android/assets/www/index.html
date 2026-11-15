@@ -7,223 +7,245 @@
 <style>
   :root{
     --ink:#111315; --sub:#8b9199; --hair:#eceef1; --wash:#f6f7f9;
-    --live:#12a150; --dead:#d0d4da;
+    --live:#12a150; --dead:#d0d4da; --danger:#b42318;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;background:transparent;color:var(--ink);overflow:hidden;
-    font:15px/1.55 -apple-system,system-ui,"PingFang SC","Noto Sans CJK SC",sans-serif}
+  html,body{margin:0;background:transparent;overflow:hidden;
+    font:15px/1.55 -apple-system,system-ui,"PingFang SC","Noto Sans CJK SC",sans-serif;
+    color:var(--ink);-webkit-font-smoothing:antialiased}
 
-  /* 卡片本体 */
-  .veil{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-    padding:16px;background:rgba(10,14,20,.34)}
-  .sheet{
-    background:#fff;border-radius:22px;overflow:hidden;width:100%;
-    box-shadow:0 12px 40px rgba(15,20,28,.18),0 1px 0 rgba(255,255,255,.6) inset;
-    max-height:78vh;display:flex;flex-direction:column;
-    animation:rise .22s cubic-bezier(.2,.9,.3,1);
+  .card{
+    background:#fff;border-radius:20px;overflow:hidden;
+    box-shadow:0 10px 34px rgba(15,20,28,.20),0 1px 0 rgba(255,255,255,.7) inset;
+    display:flex;flex-direction:column;height:100vh;
   }
-  @keyframes rise{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
 
-  /* 顶栏 */
-  .bar{display:flex;align-items:center;gap:9px;padding:15px 18px 12px;flex:none}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 15px 10px;flex:none}
   .pip{width:7px;height:7px;border-radius:50%;background:var(--dead);flex:none;
     transition:background .2s}
   .pip.live{background:var(--live);box-shadow:0 0 0 3px rgba(18,161,80,.13)}
-  .bar .who{font-size:13.5px;color:var(--sub);letter-spacing:.2px;
+  .bar .who{font-size:13px;color:var(--sub);letter-spacing:.2px;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+
   .x{width:26px;height:26px;border:0;background:transparent;padding:0;flex:none;
-    display:grid;place-items:center;border-radius:50%}
+    display:grid;place-items:center;border-radius:50%;position:relative}
   .x:active{background:var(--wash)}
   .x::before,.x::after{content:'';position:absolute;width:13px;height:1.5px;
     background:#b6bcc4;border-radius:2px}
   .x::before{transform:rotate(45deg)} .x::after{transform:rotate(-45deg)}
-  .x{position:relative}
-  .killball{font-size:11px;color:var(--sub);border:1px solid var(--hair);
-    background:transparent;border-radius:999px;padding:3px 9px;flex:none;
-    line-height:1.4;margin-right:2px}
-  .killball:active{background:var(--wash);color:#b42318;border-color:#f3d6d3}
 
-  /* 滚动区 */
-  .body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 18px 4px;flex:1}
+  .body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 15px;flex:1;min-height:0}
   .body::-webkit-scrollbar{width:0}
 
-  /* 未授权 */
-  .nudge{padding:6px 0 16px}
-  .nudge p{margin:0 0 12px;font-size:13.5px;color:var(--sub);line-height:1.7}
+  .nudge{padding:4px 0 14px}
+  .nudge p{margin:0 0 11px;font-size:13px;color:var(--sub);line-height:1.65}
 
-  /* 主按钮 */
-  .go{width:100%;height:48px;border:0;border-radius:14px;background:var(--ink);color:#fff;
+  .go{width:100%;height:46px;border:0;border-radius:13px;background:var(--ink);color:#fff;
     font-size:15px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:8px;
-    letter-spacing:.3px;transition:transform .1s,opacity .15s}
+    letter-spacing:.3px;transition:transform .1s,opacity .15s;font-family:inherit}
   .go:active{transform:scale(.982);opacity:.9}
   .go[disabled]{opacity:.32;transform:none}
-  .go.ghost{background:var(--wash);color:var(--ink)}
 
-  /* 文件行 */
-  .pick{display:flex;align-items:center;gap:11px;padding:13px 0}
-  .pick .thumb{width:38px;height:38px;border-radius:11px;background:var(--wash);flex:none;
+  .hd{display:flex;align-items:center;gap:8px;padding:12px 0 6px;
+    border-top:1px solid var(--hair);margin-top:2px}
+  .hd:first-child{border-top:0;margin-top:0}
+  .hd .lab{font-size:11.5px;color:var(--sub);letter-spacing:.5px;flex:1;
+    text-transform:uppercase;font-weight:500}
+  .hd .act{font-size:12.5px;color:var(--sub);border:0;background:transparent;
+    padding:3px 0;font-family:inherit;display:flex;align-items:center;gap:4px}
+  .hd .act:active{color:var(--ink)}
+  .hd .act[disabled]{opacity:.4}
+
+  .pick{display:flex;align-items:center;gap:10px;padding:10px 0 12px}
+  .pick .thumb{width:36px;height:36px;border-radius:10px;background:var(--wash);flex:none;
     display:grid;place-items:center}
   .pick .txt{flex:1;min-width:0}
   .pick .t1{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .pick .t2{font-size:12.5px;color:var(--sub);margin-top:1px;font-variant-numeric:tabular-nums}
-  .swap{font-size:13px;color:var(--sub);border:0;background:transparent;padding:6px 2px;flex:none}
+  .pick .t2{font-size:12px;color:var(--sub);margin-top:1px;font-variant-numeric:tabular-nums}
 
-  /* 波形条（试听用） */
-  .preview{padding:2px 0 14px}
-  .preview audio{width:100%;height:34px}
+  .preview{padding:0 0 10px}
+  .preview audio{width:100%;height:32px}
 
-  /* 历史列表 */
-  .hd{display:flex;align-items:baseline;gap:8px;padding:16px 0 7px;
-    border-top:1px solid var(--hair);margin-top:4px}
-  .hd .lab{font-size:12px;color:var(--sub);letter-spacing:.6px;text-transform:uppercase;flex:1}
-  .hd .clr{font-size:12.5px;color:var(--sub);border:0;background:transparent;padding:2px 0}
-
-  .row{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid #f5f6f8}
+  .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f5f6f8}
   .row:last-child{border-bottom:0}
   .row .dot{width:6px;height:6px;border-radius:50%;background:var(--dead);flex:none}
   .row.new .dot{background:var(--live)}
   .row .main{flex:1;min-width:0}
-  .row .l1{font-size:14px;font-variant-numeric:tabular-nums;display:flex;gap:7px;align-items:baseline}
-  .row .l1 .tm{font-size:12px;color:var(--sub)}
-  .row .l2{font-size:11.5px;color:#a9aeb5;font-family:ui-monospace,monospace;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
-  .row .sz{font-size:12px;color:var(--sub);flex:none;font-variant-numeric:tabular-nums}
-  .row .kill{width:24px;height:24px;border:0;background:transparent;padding:0;flex:none;
+  .row .l1{font-size:13.5px;font-variant-numeric:tabular-nums;
+    display:flex;gap:7px;align-items:baseline;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .row .l1 .tm{font-size:11.5px;color:var(--sub);flex:none}
+  .row .l2{font-size:11.5px;color:#a9aeb5;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+  .row .sz{font-size:11.5px;color:var(--sub);flex:none;font-variant-numeric:tabular-nums}
+  .row .kill{width:22px;height:22px;border:0;background:transparent;padding:0;flex:none;
     position:relative;border-radius:50%}
   .row .kill:active{background:#fdeceb}
-  .row .kill::before,.row .kill::after{content:'';position:absolute;left:6px;top:11px;
+  .row .kill::before,.row .kill::after{content:'';position:absolute;left:5px;top:10px;
     width:12px;height:1.4px;background:#c9ced5;border-radius:2px}
   .row .kill::before{transform:rotate(45deg)} .row .kill::after{transform:rotate(-45deg)}
-  .row.sel{background:var(--wash);border-radius:12px;padding-left:9px;padding-right:9px;
-    margin:0 -9px;border-bottom-color:transparent}
+  .row.sel{background:var(--wash);border-radius:11px;padding-left:8px;padding-right:8px;
+    margin:0 -8px;border-bottom-color:transparent}
   .row.sel .dot{background:var(--ink)}
 
-  .empty{padding:22px 0 26px;text-align:center;font-size:13px;color:#b0b6bd;line-height:1.8}
+  .latest{padding:11px 0 13px;border-bottom:0}
+  .latest .l1{font-size:14.5px}
 
-  /* 底部固定 */
-  .foot{flex:none;padding:12px 18px calc(14px + env(safe-area-inset-bottom));
+  .empty{padding:16px 0 20px;text-align:center;font-size:12.5px;
+    color:#b0b6bd;line-height:1.75}
+
+  .foot{flex:none;padding:10px 15px calc(12px + env(safe-area-inset-bottom));
     border-top:1px solid var(--hair);background:#fff}
-  .tip{font-size:12px;color:var(--sub);text-align:center;margin-top:9px;line-height:1.5}
-  .tip.warn{color:#9a6700}
+  .tip{font-size:11.5px;color:var(--sub);text-align:center;margin-top:7px;line-height:1.45}
 
-  .spin{width:13px;height:13px;border:1.8px solid #dfe3e8;border-top-color:var(--ink);
+  .spin{width:12px;height:12px;border:1.8px solid #dfe3e8;border-top-color:var(--ink);
     border-radius:50%;animation:sp .75s linear infinite;display:inline-block}
   @keyframes sp{to{transform:rotate(360deg)}}
-
-  /* 二次确认条 */
-  .confirm{position:absolute;left:0;right:0;bottom:0;background:#fff;
-    border-top:1px solid var(--hair);padding:13px 18px calc(14px + env(safe-area-inset-bottom));
-    display:none;gap:9px}
-  .confirm.on{display:flex}
-  .confirm .cbtn{flex:1;height:42px;border-radius:12px;border:0;font-size:14px;font-weight:500}
-  .confirm .no{background:var(--wash);color:var(--ink)}
-  .confirm .yes{background:#b42318;color:#fff}
 </style>
 </head>
 <body>
-<div class="veil" id="veil">
-<div class="sheet" id="sheet" style="position:relative">
+<div class="card" id="card">
 
   <div class="bar">
     <span class="pip" id="pip"></span>
     <span class="who" id="who">检查中</span>
-    <button class="killball" id="btnKill" aria-label="关闭悬浮球">关</button>
-    <button class="x" id="btnClose" aria-label="关闭面板"></button>
+    <button class="x" id="btnClose" aria-label="点关窗，长按关掉悬浮球"></button>
   </div>
 
   <div class="body" id="bodyEl">
 
-    <!-- 未授权 -->
     <div class="nudge" id="nudge" style="display:none">
       <p id="nudgeTxt">需要 Shizuku 授权才能读写 QQ 的语音目录。</p>
       <button class="go" id="btnAuth">授权</button>
     </div>
 
-    <!-- 选音频 -->
-    <div class="pick" id="pick" style="display:none">
-      <div class="thumb">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8b9199"
-          stroke-width="2" stroke-linecap="round">
-          <path d="M12 3v11"/><path d="M8 7v7"/><path d="M16 7v7"/>
-          <path d="M4 10v2"/><path d="M20 10v2"/>
-        </svg>
-      </div>
-      <div class="txt">
-        <div class="t1" id="pickName">从文件里选一个音频</div>
-        <div class="t2" id="pickMeta">wav · mp3 · flac · m4a · ogg</div>
-      </div>
-      <button class="swap" id="btnPick">选择</button>
-    </div>
-    <input type="file" id="file" accept="audio/*" hidden>
-
-    <div class="preview" id="preview" style="display:none">
-      <audio id="player" controls></audio>
-    </div>
-
-    <!-- 历史 -->
-    <div id="histWrap" style="display:none">
+    <div id="audioWrap" style="display:none">
       <div class="hd">
-        <span class="lab">最近的语音</span>
-        <button class="clr" id="btnClear">清空记录</button>
+        <span class="lab">音频</span>
+        <button class="act" id="btnPick">选择</button>
       </div>
-      <div id="hist"></div>
+
+      <div class="pick" id="pick">
+        <div class="thumb">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b9199"
+            stroke-width="2" stroke-linecap="round">
+            <path d="M12 3v11"/><path d="M8 7v7"/><path d="M16 7v7"/>
+            <path d="M4 10v2"/><path d="M20 10v2"/>
+          </svg>
+        </div>
+        <div class="txt">
+          <div class="t1" id="pickName">还没选</div>
+          <div class="t2" id="pickMeta">点右上「选择」挑一个音频</div>
+        </div>
+      </div>
+
+      <div class="preview" id="preview" style="display:none">
+        <audio id="player" controls></audio>
+      </div>
+
+      <div id="audioHistWrap" style="display:none">
+        <div class="hd">
+          <span class="lab">最近用过</span>
+          <button class="act" id="btnClearAudio">清空</button>
+        </div>
+        <div id="audioHist"></div>
+      </div>
+    </div>
+
+    <div id="qqWrap" style="display:none">
+      <div class="hd">
+        <span class="lab">QQ 最新一条</span>
+        <button class="act" id="btnRefreshQQ">刷新</button>
+      </div>
+      <div id="qqLatest"></div>
     </div>
 
   </div>
 
   <div class="foot" id="foot" style="display:none">
     <button class="go" id="btnApply" disabled>替换并发送</button>
-    <div class="tip" id="tip">先在 QQ 里录一条再取消，然后点这里</div>
+    <div class="tip" id="tip">先在 QQ 里录一条再取消</div>
   </div>
 
-  <div class="confirm" id="confirm">
-    <button class="cbtn no" id="cNo">取消</button>
-    <button class="cbtn yes" id="cYes">清空</button>
-  </div>
-
-</div>
 </div>
 
 <script type="module">
 const $ = s => document.querySelector(s);
+const AMP = String.fromCharCode(38);
+const ENT = {
+  '&': AMP + 'amp;', '<': AMP + 'lt;', '>': AMP + 'gt;',
+  '"': AMP + 'quot;', "'": AMP + '#39;'
+};
+const esc = s => String(s).replace(/[&<>"']/g, c => ENT[c]);
+
 const S = {
   token:null, info:null,
-  files:[],          // 服务器上的 slk
-  hidden:[],         // 用户手动删掉的记录（本地）
-  target:null,
-  perm:false, ready:false,
-  busy:false
+  latest:null,
+  audioPick:null,
+  audioHist:[],
+  perm:false, busy:false, loading:false, pickedUri:''
 };
 let silk = null;
 const TARGET_RATE = 24000;
-const LS_HIDDEN = 'hidden_slk_v1';
+const LS_PICK = 'audio_pick_v2';
+const LS_HIST = 'audio_hist_v2';
 
-/* ---------- 小工具 ---------- */
 const fmtDur = s => (s==null||s<0) ? '—'
   : (s>=60 ? Math.floor(s/60)+':'+String(Math.round(s%60)).padStart(2,'0') : s.toFixed(2)+'s');
 const fmtSize = b => !b ? '—' : b<1024 ? b+' B' : (b/1024).toFixed(1)+' KB';
-const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 function nameTime(n){
-  const m=/stream_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(n);
-  return m ? `${+m[2]}/${+m[3]} ${m[4]}:${m[5]}` : '';
+  const m = /stream_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(n);
+  if (m) return `${+m[2]}/${+m[3]} ${m[4]}:${m[5]}`;
+  const t = /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/.exec(n);
+  return t ? `${+t[2]}/${+t[3]} ${t[4]}:${t[5]}` : '';
 }
 
-/* ---------- 隐藏记录持久化 ---------- */
-function loadHidden(){
-  try{ S.hidden = JSON.parse(localStorage.getItem(LS_HIDDEN) || '[]'); }
-  catch(e){ S.hidden = []; }
+let lastH = 0;
+function reportHeight(){
+  requestAnimationFrame(()=>{
+    const h = document.getElementById('card').getBoundingClientRect().height;
+    if (Math.abs(h - lastH) < 1) return;
+    lastH = h;
+    try{ Native.reportHeight(h); }catch(e){}
+  });
 }
-function saveHidden(){
-  try{ localStorage.setItem(LS_HIDDEN, JSON.stringify(S.hidden)); }catch(e){}
+
+/* ---------- 本地存储 ---------- */
+function loadAudioState(){
+  try{
+    const p = JSON.parse(localStorage.getItem(LS_PICK) || 'null');
+    if (p && p.name && p.uri) S.audioPick = p;
+  }catch(e){}
+  try{
+    const h = JSON.parse(localStorage.getItem(LS_HIST) || '[]');
+    S.audioHist = Array.isArray(h) ? h.filter(x=>x && x.uri) : [];
+  }catch(e){ S.audioHist = []; }
 }
-function isHidden(f){ return S.hidden.includes(f.name); }
+function saveAudioPick(){
+  try{
+    if (S.audioPick) localStorage.setItem(LS_PICK, JSON.stringify(S.audioPick));
+    else localStorage.removeItem(LS_PICK);
+  }catch(e){}
+}
+function saveAudioHist(){
+  try{ localStorage.setItem(LS_HIST, JSON.stringify(S.audioHist.slice(0,10))); }catch(e){}
+}
+function pushAudioHist(item){
+  S.audioHist = S.audioHist.filter(x => x.uri !== item.uri);
+  S.audioHist.unshift(item);
+  S.audioHist = S.audioHist.slice(0,10);
+  saveAudioHist();
+}
 
 /* ---------- 状态 ---------- */
 function refresh(){
-  const st = JSON.parse(Native.status());
-  S.perm = st.perm; S.ready = st.perm;
+  let st = {shizuku:false, perm:false, uin:''};
+  try{ st = JSON.parse(Native.status()); }catch(e){}
 
+  S.perm = !!st.perm;
   const pip = $('#pip'), who = $('#who');
+
   if(!st.shizuku){
     pip.className = 'pip';
     who.textContent = 'Shizuku 未运行';
@@ -235,76 +257,199 @@ function refresh(){
   }else{
     pip.className = 'pip live';
     who.textContent = st.uin ? ('QQ ' + st.uin) : '已就绪';
-    $('#nudge').style.display='none';
-    $('#pick').style.display='flex';
-    $('#histWrap').style.display='block';
-    $('#foot').style.display='block';
+    $('#nudge').style.display = 'none';
+    $('#audioWrap').style.display = 'block';
+    $('#qqWrap').style.display = 'block';
+    $('#foot').style.display = 'block';
   }
+  reportHeight();
   return st;
 }
 function showNudge(t){
-  $('#nudge').style.display='block';
+  $('#nudge').style.display = 'block';
   $('#nudgeTxt').textContent = t;
-  $('#pick').style.display='none';
-  $('#histWrap').style.display='none';
-  $('#foot').style.display='none';
+  $('#audioWrap').style.display = 'none';
+  $('#qqWrap').style.display = 'none';
+  $('#foot').style.display = 'none';
 }
 
-/* ---------- 列表 ---------- */
-function loadList(){
-  if(!S.perm) return;
-  const r = JSON.parse(Native.list());
-  if(!r.ok){ $('#hist').innerHTML = `<div class="empty">${esc(r.error||'读取失败')}</div>`; return; }
-  S.files = r.files;
-  renderHist();
+/* ---------- 音频渲染 ---------- */
+function renderAudio(){
+  const a = S.audioPick;
+  if(a){
+    $('#pickName').textContent = a.name;
+    $('#pickMeta').textContent =
+      `${a.durStr || fmtDur(a.dur)} · ${fmtSize(a.size)}` +
+      (a.srcRate ? ` · 源 ${(a.srcRate/1000).toFixed(1)}k/${a.ch===2?'立体声':'单声道'}` : '');
+  }else{
+    $('#pickName').textContent = '还没选';
+    $('#pickMeta').textContent = '点右上「选择」挑一个音频';
+    $('#preview').style.display = 'none';
+  }
+  renderAudioHist();
   syncBtn();
 }
 
-function renderHist(){
-  const box = $('#hist');
-  const list = S.files.filter(f=>!isHidden(f));
+function renderAudioHist(){
+  const box = $('#audioHist');
+  const list = S.audioHist;
   if(!list.length){
-    box.innerHTML = '<div class="empty">还没有记录<br>在 QQ 里录一条再取消</div>';
+    $('#audioHistWrap').style.display = 'none';
+    box.innerHTML = '';
+    reportHeight();
     return;
   }
+  $('#audioHistWrap').style.display = 'block';
+
+  const isSel = i => S.audioPick && S.audioPick.uri === i.uri;
+
   box.innerHTML = '';
-  list.forEach((f,i)=>{
+  list.forEach((it, idx)=>{
     const el = document.createElement('div');
-    const sel = S.target && S.target.name===f.name;
-    el.className = 'row' + (i===0?' new':'') + (sel?' sel':'');
+    el.className = 'row' + (isSel(it) ? ' sel' : '');
     el.innerHTML = `
       <span class="dot"></span>
       <div class="main">
-        <div class="l1">${fmtDur(f.dur)}<span class="tm">${nameTime(f.name)}</span></div>
-        <div class="l2">${esc(f.name)}</div>
+        <div class="l1">${esc(it.name)}</div>
+        <div class="l2">${esc(it.durStr || fmtDur(it.dur))} · ${esc(fmtSize(it.size))}</div>
       </div>
-      <span class="sz">${fmtSize(f.size)}</span>
-      <button class="kill" data-n="${esc(f.name)}" aria-label="删除"></button>`;
+      <button class="kill" data-i="${idx}" aria-label="删除"></button>`;
+
     el.onclick = e=>{
       if(e.target.classList.contains('kill')) return;
-      S.target = f; renderHist(); syncBtn();
+      useAudioItem(it);
     };
     el.querySelector('.kill').onclick = e=>{
       e.stopPropagation();
-      S.hidden.push(f.name); saveHidden();
-      if(S.target && S.target.name===f.name){ S.target=null; }
-      renderHist(); syncBtn();
-      Native.toast('已从列表移除（缓存文件还在）');
+      S.audioHist.splice(idx,1);
+      saveAudioHist();
+      if(isSel(it)){ S.audioPick = null; S.token = null; saveAudioPick(); }
+      renderAudio();
+      Native.toast('已移除');
     };
     box.appendChild(el);
   });
+  reportHeight();
+}
+
+/* 点历史 → 直接重读那个 URI 再编码 */
+async function useAudioItem(it){
+  $('#pickName').textContent = it.name;
+  $('#pickMeta').textContent = '读取中…';
+  try{
+    const f = await uriToFile(it.uri, it.name);
+    const { pv } = await build(f);
+    S.audioPick = Object.assign({}, it, {
+      dur: S.info.dur, durStr: fmtDur(S.info.dur),
+      size: S.info.size, srcRate: S.info.srcRate, ch: S.info.ch
+    });
+    saveAudioPick();
+    pushAudioHist(S.audioPick);
+
+    $('#player').src = URL.createObjectURL(new Blob([pv], {type:'audio/wav'}));
+    $('#preview').style.display = 'block';
+    renderAudio();
+  }catch(err){
+    Native.toast('这条读不到了，请重选');
+    $('#pickMeta').textContent = '读不到，请重选';
+    reportHeight();
+  }
+}
+
+function uriToFile(uri, name){
+  return new Promise((res, rej)=>{
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', uri, true);
+    xhr.responseType = 'blob';
+    xhr.onload = ()=>{
+      if(xhr.status === 200 || xhr.status === 0)
+        res(new File([xhr.response], name || 'audio', {type: xhr.response.type || 'audio/mpeg'}));
+      else rej(new Error('HTTP ' + xhr.status));
+    };
+    xhr.onerror = ()=> rej(new Error('读取失败'));
+    xhr.send();
+  });
+}
+
+/* Activity 选完文件回调进来 */
+window.onAudioPicked = async (uri, name)=>{
+  S.pickedUri = uri;
+  $('#pickName').textContent = name || '音频';
+  $('#pickMeta').textContent = '读取中…';
+  $('#btnPick').textContent = '转换中';
+  $('#btnPick').disabled = true;
+  try{
+    const f = await uriToFile(uri, name);
+    const { pv } = await build(f);
+    const item = {
+      name: name || 'audio',
+      uri: uri,
+      dur: S.info.dur, durStr: fmtDur(S.info.dur),
+      size: S.info.size, srcRate: S.info.srcRate, ch: S.info.ch
+    };
+    S.audioPick = item;
+    saveAudioPick();
+    pushAudioHist(item);
+
+    $('#pickName').textContent = item.name;
+    $('#pickMeta').textContent =
+      `${item.durStr} · ${fmtSize(item.size)} · 源 ${(item.srcRate/1000).toFixed(1)}k/${item.ch===2?'立体声':'单声道'}`;
+    $('#player').src = URL.createObjectURL(new Blob([pv], {type:'audio/wav'}));
+    $('#preview').style.display = 'block';
+    renderAudio();
+  }catch(err){
+    Native.toast('转换失败：' + (err.message||err));
+    $('#pickName').textContent = '转换失败，重选';
+    $('#pickMeta').textContent = String(err.message||err).slice(0,60);
+    reportHeight();
+  }finally{
+    $('#btnPick').textContent = '选择';
+    $('#btnPick').disabled = false;
+  }
+};
+
+/* ---------- QQ 最新一条 ---------- */
+function renderQQ(){
+  const box = $('#qqLatest');
+  const f = S.latest;
+
+  if(S.loading && !f){
+    box.innerHTML = '<div class="empty"><span class="spin"></span> 正在找缓存…</div>';
+    reportHeight();
+    return;
+  }
+  if(!f){
+    box.innerHTML = '<div class="empty">还没有缓存<br>在 QQ 里录一条、滑到「转文字」再松手</div>';
+    reportHeight();
+    return;
+  }
+
+  box.innerHTML = '';
+  const el = document.createElement('div');
+  el.className = 'row latest new' + (S.target && S.target.name === f.name ? ' sel' : '');
+  el.innerHTML = `
+    <span class="dot"></span>
+    <div class="main">
+      <div class="l1">${fmtDur(f.dur)}<span class="tm">${nameTime(f.name)}</span></div>
+      <div class="l2">${esc(f.name)}</div>
+    </div>
+    <span class="sz">${fmtSize(f.size)}</span>`;
+  el.onclick = ()=>{ S.target = f; renderQQ(); syncBtn(); };
+  box.appendChild(el);
+  reportHeight();
 }
 
 function syncBtn(){
   const b = $('#btnApply');
-  const ok = S.perm && S.token && S.target && !S.busy;
+  const ok = S.perm && S.token && S.latest && !S.busy;
   b.disabled = !ok;
-  if(!S.target) $('#tip').textContent = '选一条要替换的语音';
-  else if(!S.token) $('#tip').textContent = '先在上面选个音频';
-  else $('#tip').textContent = `将替换 ${nameTime(S.target.name)||S.target.name}`;
+  if(!S.latest) $('#tip').textContent = '先在 QQ 里录一条';
+  else if(!S.audioPick || !S.token) $('#tip').textContent = '先选个音频';
+  else $('#tip').textContent = '将替换最新那条语音';
+  reportHeight();
 }
 
-/* ---------- 音频 ---------- */
+/* ---------- 编码 ---------- */
 async function decode(file){
   const buf = await file.arrayBuffer();
   const ac = new (window.AudioContext||window.webkitAudioContext)();
@@ -351,7 +496,6 @@ async function build(file){
   const enc = await silk.encode(wav, 0);
   const bytes = enc.data;
 
-  // 结构自检
   const okTag = bytes[0]===0x02;
   let hdr=''; for(let i=1;i<10;i++) hdr += String.fromCharCode(bytes[i]);
   const tailFF = bytes[bytes.length-2]===0xFF && bytes[bytes.length-1]===0xFF;
@@ -364,10 +508,8 @@ async function build(file){
       frames++; i+=n;
     }
   }
-  const good = okTag && hdr==='#!SILK_V3' && !tailFF;
-  if(!good) throw new Error('编码结构异常');
+  if(!(okTag && hdr==='#!SILK_V3' && !tailFF)) throw new Error('编码结构异常');
 
-  // 回听：把 slk 解回 pcm 再包成 wav
   const back = await silk.decode(bytes, TARGET_RATE);
   const n = Math.floor(back.data.length/2);
   const f32 = new Float32Array(n);
@@ -381,63 +523,52 @@ async function build(file){
 }
 
 /* ---------- 交互 ---------- */
-$('#btnClose').onclick = ()=> Native.close();
+let xTimer = null, xLong = false;
+const xBtn = $('#btnClose');
 
-// 关闭悬浮球（从屏幕移除，服务也停）
-$('#btnKill').onclick = ()=>{
-  if(confirm('关闭悬浮球？之后要重新打开 App 才能恢复')){
-    Native.hideBall();
-  }
+xBtn.onclick = ()=>{
+  if(xLong){ xLong = false; return; }
+  Native.close();
 };
-
-// 点遮罩空白处关面板
-$('#veil').onclick = e=>{
-  if(e.target.id === 'veil') Native.close();
-};
+xBtn.addEventListener('pointerdown', ()=>{
+  xLong = false;
+  xTimer = setTimeout(()=>{
+    xLong = true;
+    Native.killBall();
+  }, 650);
+});
+['pointerup','pointerleave','pointercancel'].forEach(ev=>
+  xBtn.addEventListener(ev, ()=>{
+    if(xTimer){ clearTimeout(xTimer); xTimer = null; }
+  })
+);
 
 $('#btnAuth').onclick = ()=>{
   Native.requestPerm();
-  setTimeout(()=>{ if(refresh().perm) loadList(); }, 1200);
+  setTimeout(()=>{ if(refresh().perm) loadList(false); }, 1200);
 };
 
-$('#btnPick').onclick = ()=> $('#file').click();
+$('#btnPick').onclick = ()=> Native.pickAudio();
 
-$('#file').onchange = async e=>{
-  const f = e.target.files[0];
-  if(!f) return;
-  $('#btnPick').textContent = '转换中';
-  $('#btnPick').disabled = true;
-  try{
-    const { pv } = await build(f);
-    $('#pickName').textContent = f.name;
-    const i = S.info;
-    $('#pickMeta').textContent =
-      `${fmtDur(i.dur)} · ${fmtSize(i.size)} · 源 ${(i.srcRate/1000).toFixed(1)}k/${i.ch===2?'立体声':'单声道'}`;
-
-    const pl = $('#player');
-    pl.src = URL.createObjectURL(new Blob([pv], {type:'audio/wav'}));
-    $('#preview').style.display='block';
-    syncBtn();
-  }catch(err){
-    Native.toast('转换失败：'+(err.message||err));
-    $('#pickName').textContent = '转换失败，重选';
-    $('#pickMeta').textContent = String(err.message||err).slice(0,60);
-  }finally{
-    $('#btnPick').textContent = '选择';
-    $('#btnPick').disabled = false;
-    e.target.value = '';
-  }
+$('#btnClearAudio').onclick = ()=>{
+  if(!S.audioHist.length) return;
+  S.audioHist = [];
+  saveAudioHist();
+  renderAudio();
+  Native.toast('音频记录已清空');
 };
+
+$('#btnRefreshQQ').onclick = ()=> loadList(true);
 
 $('#btnApply').onclick = ()=>{
-  if(!S.token || !S.target || S.busy) return;
+  if(!S.token || !S.latest || S.busy) return;
   S.busy = true; syncBtn();
   $('#btnApply').innerHTML = '<span class="spin"></span> 写入中';
   try{
-    const r = JSON.parse(Native.save(S.target.name, S.target.dir, b64(S.token), true));
+    const r = JSON.parse(Native.save(S.latest.name, S.latest.dir, b64(S.token), true));
     if(r.ok){
       Native.toast('已替换 · 回 QQ 点那条语音试听');
-      $('#foot').style.display='none';
+      $('#foot').style.display = 'none';
       setTimeout(()=> Native.close(), 420);
     }else{
       Native.toast('失败：'+(r.error||'未知'));
@@ -451,34 +582,57 @@ $('#btnApply').onclick = ()=>{
   }
 };
 
-/* 清空记录（带确认） */
-$('#btnClear').onclick = ()=>{
-  if(!S.files.length) return;
-  $('#confirm').classList.add('on');
-};
-$('#cNo').onclick = ()=> $('#confirm').classList.remove('on');
-$('#cYes').onclick = ()=>{
-  S.files.forEach(f=>{ if(!isHidden(f)) S.hidden.push(f.name); });
-  saveHidden();
-  $('#confirm').classList.remove('on');
-  S.target = null;
-  renderHist(); syncBtn();
-  Native.toast('记录已清空（缓存文件未删除）');
-};
+/* ---------- 列表 ---------- */
+function loadList(force){
+  if(!S.perm || S.loading) return;
+  S.loading = true;
+  if(force || !S.latest) renderQQ();
+  try{
+    const r = JSON.parse(Native.list());
+    if(!r.ok){
+      S.latest = null; S.target = null;
+      S.errMsg = r.error || '读取失败';
+    }else{
+      const files = r.files || [];
+      S.latest = files.length ? files[0] : null;
+      S.target = S.latest;
+      S.errMsg = '';
+    }
+  }catch(e){
+    S.latest = null; S.target = null;
+    S.errMsg = '读取失败';
+  }finally{
+    S.loading = false;
+    if(S.errMsg && !S.latest){
+      $('#qqLatest').innerHTML = `<div class="empty">${esc(S.errMsg)}</div>`;
+    }else{
+      renderQQ();
+    }
+    syncBtn();
+  }
+}
 
-/* 启动 */
-loadHidden();
+/* ---------- 启动 ---------- */
+loadAudioState();
 try{
   const st = refresh();
-  if(st.perm) loadList();
+  renderAudio();
+  renderQQ();
+  if(st.perm) setTimeout(()=> loadList(false), 30);
 }catch(e){
   $('#who').textContent = '初始化失败';
   showNudge(String(e.message||e));
 }
+
 window.onShizukuChanged = ()=>{
   const st = refresh();
-  if(st.perm && !S.files.length) loadList();
+  if(st.perm) loadList(false);
 };
+
+window.addEventListener('resize', reportHeight);
+new ResizeObserver(reportHeight).observe(document.getElementById('card'));
+setTimeout(reportHeight, 60);
+setTimeout(reportHeight, 300);
 </script>
 </body>
 </html>
